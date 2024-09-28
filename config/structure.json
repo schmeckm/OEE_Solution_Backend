@@ -1,0 +1,13 @@
+{
+  "Group_id": "Basel",
+  "Area": "Packaging",
+  "edge_node_id": "Falcon11",
+  "device_id": {
+    "Falcon11": {
+      "metadata": {
+        "shiftCount": 3,
+        "lineManager": "John Doe"
+      }
+    }
+  }
+}

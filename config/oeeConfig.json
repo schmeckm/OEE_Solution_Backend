@@ -1,0 +1,138 @@
+{
+    "PlannedProductionQuantity": {
+        "alias": "Planned Production Time",
+        "type": "number",
+        "command": "metrics",
+        "metadata": {
+            "unit": "hours",
+            "description": "Total time planned for production"
+        },
+        "machineConnect": false
+    },
+    "Runtime": {
+        "alias": "Runtime",
+        "type": "number",
+        "command": "DCMD",
+        "metadata": {
+            "unit": "hours",
+            "description": "Planned Runtime"
+        },
+        "machineConnect": false
+    },
+    "ActualPerformance": {
+        "alias": "Actual Performance",
+        "type": "number",
+        "command": "metrics",
+        "metadata": {
+            "unit": "units",
+            "description": "Total units produced"
+        },
+        "machineConnect": true
+    },
+    "TargetPerformance": {
+        "alias": "Target Performance",
+        "type": "number",
+        "command": "metrics",
+        "metadata": {
+            "unit": "units",
+            "description": "Target units to be produced"
+        },
+        "machineConnect": false
+    },
+    "ActualProductionYield": {
+        "alias": "Good Products",
+        "type": "number",
+        "command": "DCMD",
+        "metadata": {
+            "unit": "units",
+            "description": "Total units without defects"
+        },
+        "machineConnect": true
+    },
+    "ActualProductionQuantity": {
+        "alias": "Total Production",
+        "type": "number",
+        "command": "metrics",
+        "metadata": {
+            "unit": "units",
+            "description": "Total units produced including defects"
+        },
+        "machineConnect": true
+    },
+    "availability": {
+        "alias": "Availability",
+        "type": "number",
+        "command": "metrics",
+        "metadata": {
+            "unit": "percent",
+            "description": "Availability percentage"
+        },
+        "machineConnect": true
+    },
+    "performance": {
+        "alias": "Performance",
+        "type": "number",
+        "command": "metrics",
+        "metadata": {
+            "unit": "percent",
+            "description": "Performance percentage"
+        },
+        "machineConnect": true
+    },
+    "quality": {
+        "alias": "Quality",
+        "type": "number",
+        "command": "metrics",
+        "metadata": {
+            "unit": "percent",
+            "description": "Quality percentage"
+        },
+        "machineConnect": true
+    },
+    "oee": {
+        "alias": "Overall Equipment Effectiveness",
+        "type": "number",
+        "command": "metrics",
+        "metadata": {
+            "unit": "percent",
+            "description": "Overall Equipment Effectiveness"
+        },
+        "machineConnect": true
+    },
+    "Hold": {
+        "alias": "Hold Command",
+        "type": "Int32",
+        "command": "DCMD",
+        "metadata": {
+            "description": "Machine hold command"
+        },
+        "machineConnect": true
+    },
+    "Unhold": {
+        "alias": "Unhold Command",
+        "type": "Int32",
+        "command": "DCMD",
+        "metadata": {
+            "description": "Machine unhold command"
+        },
+        "machineConnect": true
+    },
+    "Start": {
+        "alias": "Process Order Start",
+        "type": "Int32",
+        "command": "DCMD",
+        "metadata": {
+            "description": "Start timestamp of the process order"
+        },
+        "machineConnect": true
+    },
+    "End": {
+        "alias": "Process Order End",
+        "type": "Int32",
+        "command": "DCMD",
+        "metadata": {
+            "description": "End timestamp of the process order"
+        },
+        "machineConnect": true
+    }
+}

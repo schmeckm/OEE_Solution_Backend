@@ -1,0 +1,56 @@
+{
+    "mqtt": {
+        "brokerUrl": "mqtt://broker.hivemq.com",
+        "brokerPort": 1883,
+        "username": "your_mqtt_username",
+        "password": "your_mqtt_password"
+    },
+    "classificationLevels": {
+        "WORLD_CLASS": 85,
+        "EXCELLENT": 70,
+        "GOOD": 60,
+        "AVERAGE": 40
+    },
+    "tls": {
+        "key": null,
+        "cert": null,
+        "ca": null
+    },
+    "method": "parris",
+    "port": 3000,
+    "logRetentionDays": 2,
+    "oeeAsPercent": true,
+    "oeeApiUrl": "http://localhost:3000",
+    "influxdb": {
+        "url": "http://136.244.90.128:8086",
+        "token": "b3RRWjHvQ9fQyBYgrqLHlYdPdu4SEZz8_CXApmIrzRkuL7ElNQyB9ZF7Dfi9Ak6ROqz54nc8nUhU3WJ9rQzljw==",
+        "org": "drugproduct_center",
+        "bucket": "data"
+    },
+    "topicFormat": "spBv1.0/group_id/message_type/edge_node_id",
+    "plannedDowntimeApiUrl": null,
+    "MQTT_Enable": true,
+    "MQTT_Broker": "mqtt://broker.hivemq.com",
+    "MQTT_TopicPrefix": "spBv1.0",
+    "logSettings": {
+        "logToConsole": true,
+        "logToFile": ["false", "error", "debug"],
+        "logLevels": ["debug", "error"]
+    },
+    "thresholdSeconds": 2,
+    "dateSettings": {
+        "dateFormat": "YYYY-MM-DDTHH:mm:ssZ",
+        "timezone": "Europe/Berlin"
+    },
+    "webSocket": {
+        "username": "schmeckm",
+        "password": "loris2023"
+    },
+    "ratings": [
+        { "id": 1, "description": "Maintenance", "color": "orange" },
+        { "id": 2, "description": "Operator Error", "color": "red" },
+        { "id": 3, "description": "Machine Fault", "color": "blue" },
+        { "id": 4, "description": "Unknown", "color": "gray" },
+        { "id": 5, "description": "IT-OT", "color": "green" }
+    ]
+}

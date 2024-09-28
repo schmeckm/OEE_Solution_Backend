@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  oee-calculator:
+    build: .
+    # Build the Docker image from the Dockerfile in the current directory
+    ports:
+      - "3000:3000"
+      # Map port 3000 on the host to port 3000 in the container
+    environment:
+      - PORT=3000
+      # Environment variable for the application port
+      - MQTT_USERNAME=your-username
+      # Environment variable for the MQTT username
+      - MQTT_PASSWORD=your-password
+      # Environment variable for the MQTT password
+      - TLS_KEY=./certs/client.key
+      # Path to the TLS key file inside the container
+      - TLS_CERT=./certs/client.crt
+      # Path to the TLS certificate file inside the container
+      - TLS_CA=./certs/ca.crt
+      # Path to the TLS CA certificate file inside the container
+    volumes:
+      - ./certs:/usr/src/app/certs
+      # Map the local `certs` directory to `/usr/src/app/certs` inside the container

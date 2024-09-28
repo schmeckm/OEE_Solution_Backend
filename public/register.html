@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Registration</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen">
+    <div class="bg-white p-6 rounded shadow-md w-80">
+        <h1 class="text-xl font-bold mb-4">Register</h1>
+        <form id="registerForm">
+            <label class="block mb-2" for="salutation">Salutation:</label>
+            <select id="salutation" name="salutation" class="border rounded p-2 mb-4" required>
+                <option value="Mr">Mr</option>
+                <option value="Ms">Ms</option>
+                <option value="Mrs">Mrs</option>
+            </select>
+
+            <label class="block mb-2" for="firstName">First Name:</label>
+            <input type="text" id="firstName" name="firstName" class="border rounded p-2 mb-4" required>
+
+            <label class="block mb-2" for="username">Username:</label>
+            <input type="text" id="username" name="username" class="border rounded p-2 mb-4" required>
+
+            <label class="block mb-2" for="email">Email:</label>
+            <input type="email" id="email" name="email" class="border rounded p-2 mb-4" required>
+
+            <label class="block mb-2" for="password">Password:</label>
+            <input type="password" id="password" name="password" class="border rounded p-2 mb-4">
+
+            <label class="block mb-2" for="role">Role:</label>
+            <select id="role" name="role" class="border rounded p-2 mb-4">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+            </select>
+
+            <button type="submit" class="bg-blue-500 text-white rounded p-2 w-full">Register</button>
+        </form>
+
+        <hr class="my-4">
+
+        <h2 class="text-lg">Or Register with Google</h2>
+        <a href="/auth/google">
+            <button class="bg-green-500 text-white rounded p-2 w-full">Register with Google</button>
+        </a>
+
+        <!-- Add Logout Button -->
+        <a href="/logout" class="block mt-4">
+            <button class="bg-red-500 text-white rounded p-2 w-full">Logout</button>
+        </a>
+    </div>
+
+    <script src="/register.js"></script>
+</body>
+
+</html>

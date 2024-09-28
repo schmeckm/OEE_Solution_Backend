@@ -1,0 +1,7 @@
+{
+    "orderNumber": "12345",
+    "setupTime": 30,
+    "processingTimePerPiece": 5,
+    "producingAmount": 100,
+    "teardownTime": 20
+}

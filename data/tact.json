@@ -1,0 +1,15 @@
+[{
+        "id": 1,
+        "machine": "Machine 1",
+        "material": "1019293",
+        "sollMax": 100,
+        "sollMin": 50
+    },
+    {
+        "id": 2,
+        "machine": "Machine 2",
+        "material": "1019293",
+        "sollMax": 120,
+        "sollMin": 70
+    }
+]

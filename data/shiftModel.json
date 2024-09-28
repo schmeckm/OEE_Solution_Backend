@@ -1,0 +1,20 @@
+[{
+        "shift_id": 1,
+        "machine_id": "1",
+        "shift_name": "Morning Shift",
+        "shift_start_time": "06:00",
+        "shift_end_time": "14:00",
+        "break_start": "12:00",
+        "break_end": "13:30"
+    },
+    {
+        "shift_id": 2,
+        "machine_id": "1",
+        "shift_name": "Evening Shift",
+        "shift_start_time": "14:00",
+        "shift_end_time": "22:00",
+        "break_start": "18:00",
+        "break_end": "19:00"
+
+    }
+]

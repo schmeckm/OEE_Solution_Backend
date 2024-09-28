@@ -1,0 +1,28 @@
+[{
+        "Plant": "Basel",
+        "area": "Packaging",
+        "machineGroup": "Blister",
+        "machine_id": "1",
+        "name": "Falcon11",
+        "description": "Description of Falcon11",
+        "OEE": true
+    },
+    {
+        "Plant": "Basel",
+        "area": "Packaging",
+        "machineGroup": "Blister",
+        "machine_id": "2",
+        "name": "Falcon12",
+        "description": "Description of Falcon12",
+        "OEE": true
+    },
+    {
+        "Plant": "Basel",
+        "area": "Packaging",
+        "machineGroup": "Blister",
+        "machine_id": "3",
+        "name": "Falcon13",
+        "description": "Description of Falcon13",
+        "OEE": false
+    }
+]

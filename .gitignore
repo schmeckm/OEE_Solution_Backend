@@ -1,0 +1,13 @@
+# Ignoriere die .env Datei
+# Node.js dependencies
+node_modules/
+
+# Log-Dateien
+*.log
+
+# Enviroment-Dateien
+.env
+
+# Temporäre Dateien
+*.tmp
+*.swp

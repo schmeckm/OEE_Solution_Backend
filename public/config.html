@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OEE Configuration Editor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>OEE Configuration Editor</h1>
+        </header>
+        <main>
+            <section class="editor-section">
+                <h2>Unified Namespace [structure.json]</h2>
+                <textarea id="structureJson" class="box" placeholder="Edit structure.json here..."></textarea>
+                <button onclick="saveStructure()"><i class="fas fa-save"></i> Save structure.json</button>
+            </section>
+            <section class="editor-section">
+                <h2>OEE Values and Formats [oeeConfig.json]</h2>
+                <textarea id="oeeConfigJson" class="box" placeholder="Edit oeeConfig.json here..."></textarea>
+                <button onclick="saveOeeConfig()"><i class="fas fa-save"></i> Save oeeConfig.json</button>
+            </section>
+            <section class="editor-section">
+                <a href="http://localhost:3000/oee-logs" class="header-link">
+                    <h2>OEE Logs</h2>
+                </a>
+                <div id="oeeLogs" class="box"></div>
+        </main>
+        <footer>
+            <p>&copy; 2024 OEE Calculator</p>
+        </footer>
+    </div>
+    <div id="notification" class="notification"></div>
+    <script>
+        async function loadFile(url, elementId) {
+            try {
+                const response = await fetch(url);
+                const data = await response.text();
+                document.getElementById(elementId).value = JSON.stringify(JSON.parse(data), null, 2);
+            } catch (error) {
+                alert('Error loading file');
+            }
+        }
+
+        async function saveFile(url, elementId) {
+            const data = document.getElementById(elementId).value;
+            try {
+                JSON.parse(data); // Verify JSON format
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: data
+                });
+                const result = await response.json();
+                showNotification(result.message);
+            } catch (error) {
+                showNotification('Invalid JSON format', true);
+            }
+        }
+
+        function saveStructure() {
+            saveFile('/structure', 'structureJson');
+        }
+
+        function saveOeeConfig() {
+            saveFile('/oeeConfig', 'oeeConfigJson');
+        }
+
+        function showNotification(message, isError = false) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${isError ? 'error' : 'success'}`;
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+
+        async function loadOeeLogs() {
+            try {
+                const response = await fetch('/oee-logs'); // Fetch the OEE logs from the server
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const logs = await response.json(); // Get the logs as JSON
+                displayLogs(logs); // Display the logs
+            } catch (error) {
+                showNotification('Error loading OEE logs', true); // Show error notification
+            }
+        }
+
+        function displayLogs(logs) {
+            const logContainer = document.getElementById('oeeLogs');
+            logContainer.innerHTML = ''; // Clear existing logs
+
+            // Display the logs in reverse order (latest at the bottom)
+            const orderedLogs = logs.reverse();
+            orderedLogs.forEach(log => {
+                const logElement = document.createElement('div');
+                logElement.className = 'log-entry';
+
+                // Assuming the log structure contains a message object with topic and values
+                const messageMatch = log.message.match(/Decoded message from topic (.+): (\{.+\})/);
+                const topic = messageMatch ? messageMatch[1] : 'N/A';
+                const values = messageMatch ? JSON.stringify(JSON.parse(messageMatch[2]), null, 2) : 'N/A';
+                const timestamp = new Date(log.timestamp).toLocaleString();
+
+                logElement.innerHTML = `
+                    <p><strong>MQTT Topic:</strong> ${topic}</p>
+                    <p><strong>Values:</strong> ${values}</p>
+                    <p><strong>Timestamp:</strong> ${timestamp}</p>
+                `;
+                logContainer.appendChild(logElement); // Add the log entry to the container
+            });
+        }
+
+        // Periodically load logs
+        setInterval(loadOeeLogs, 5000); // Refresh every 5 seconds
+
+        // Initial load of files and logs when the document is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFile('/structure', 'structureJson');
+            loadFile('/oeeConfig', 'oeeConfigJson');
+            loadOeeLogs(); // Initial load
+        });
+    </script>
+</body>
+
+</html>
