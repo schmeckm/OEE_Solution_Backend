@@ -53,7 +53,7 @@ const { error, value: envVars } = envSchema.validate({
     MQTT_BROKER_PORT: process.env.MQTT_BROKER_PORT || jsonConfig.mqtt.brokerPort,
     MQTT_USERNAME: process.env.MQTT_USERNAME || jsonConfig.mqtt.username,
     MQTT_PASSWORD: process.env.MQTT_PASSWORD || jsonConfig.mqtt.password,
-    OEE_API_URL: process.env.OEE_API_URL || jsonConfig.oeeApiUrl, // Add OEE API URL
+    OEE_API_URL: process.env.OEE_API_URL || jsonConfig.oeeApiUrl,
 });
 
 if (error) {
@@ -95,7 +95,6 @@ module.exports = {
     structure: structure,
     logRetentionDays: envVars.LOG_RETENTION_DAYS || jsonConfig.logRetentionDays,
     oeeAsPercent: envVars.OEE_AS_PERCENT || jsonConfig.oeeAsPercent,
-    oeeApiUrl: 'http://localhost:3000/api/v1', // Der grundlegende API-URL
     influxdb: {
         url: envVars.INFLUXDB_URL || jsonConfig.influxdb.url,
         token: envVars.INFLUXDB_TOKEN || jsonConfig.influxdb.token,

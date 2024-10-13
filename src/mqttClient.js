@@ -1,6 +1,6 @@
 const mqtt = require("mqtt");
 const { get: getSparkplugPayload } = require("sparkplug-payload");
-const { oeeLogger, errorLogger } = require("../utils/logger");
+const { oeeLogger, errorLogger, defaultLogger } = require("../utils/logger");
 const { mqtt: mqttConfig } = require("../config/config");
 const { handleCommandMessage, handleOeeMessage } = require("./messageHandler");
 const oeeConfig = require("../config/oeeConfig.json");
@@ -78,6 +78,7 @@ async function handleIncomingMessage(topic, message) {
     try {
         const machineId = await validateMachineId(machineName);
         const hasRunningOrder = await checkForRunningOrder(machineId);
+        defaultLogger.info("Checking for running order:", hasRunningOrder);
         if (!hasRunningOrder) {
             oeeLogger.error(`No running order found for machine ${machineName} (machine_id=${machineId}). Skipping OEE calculation.`);
             return;
@@ -135,6 +136,7 @@ async function tryToSubscribeToMachineTopics(client) {
     try {
         const allMachines = await loadMachineData();
         const oeeEnabledMachines = allMachines.filter((machine) => machine.OEE === true);
+        oeeLogger.info("Subscribing to MQTT topics for OEE-enabled machines...", oeeEnabledMachines);
 
         await Promise.all(
             oeeEnabledMachines.map(async(machine) => {
@@ -157,7 +159,7 @@ async function tryToSubscribeToMachineTopics(client) {
 function generateMqttTopics(machine) {
     const topics = [];
     if (!oeeConfig) {
-        oeeLogger.error("oeeConfig is undefined or null. Please check the configuration file.");
+        oeeLogger.info("oeeConfig is undefined or null. Please check the configuration file.");
         return topics;
     }
 
@@ -165,7 +167,7 @@ function generateMqttTopics(machine) {
         const topicType = ["Hold", "Unhold", "Start", "End"].includes(key) ? "DCMD" : "DDATA";
         topics.push(`spBv1.0/${machine.Plant}/${machine.area}/${topicType}/${machine.name}/${key}`);
     });
-
+    console.log(topics);
     return topics;
 }
 
@@ -180,12 +182,12 @@ function generateMqttTopics(machine) {
 async function subscribeWithRetry(client, topic, retries = 5, baseDelay = 1000) {
     for (let i = 0; i < retries; i++) {
         try {
-            await client.subscribe(topic);
             oeeLogger.info(`Successfully subscribed to topic: ${topic}`);
+            await client.subscribe(topic);
             return true;
         } catch (err) {
             const delay = getExponentialBackoffDelay(baseDelay, i);
-            oeeLogger.warn(`Failed to subscribe to topic: ${topic}. Retrying in ${delay}ms...`);
+            oeeLogger.info(`Failed to subscribe to topic: ${topic}. Retrying in ${delay}ms...`);
             await new Promise((resolve) => setTimeout(resolve, delay));
         }
     }

@@ -17,7 +17,7 @@
         "ca": null
     },
     "method": "parris",
-    "port": 3000,
+    "port": 4000,
     "logRetentionDays": 2,
     "oeeAsPercent": true,
     "influxdb": {

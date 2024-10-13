@@ -6,7 +6,7 @@ const { saveMachineStoppagesData } = require("./dataLoader");
 const { sendWebSocketMessage } = require("../websocket/webSocketUtils");
 
 const TIMEZONE = process.env.TIMEZONE || "UTC";
-const OEE_API_URL = process.env.OEE_API_URL || "http://localhost:3000/api/v1";
+const OEE_API_URL = process.env.OEE_API_URL
 let currentHoldStatus = {};
 
 /**
@@ -43,7 +43,7 @@ async function handleHoldCommand(value, machineId) {
  */
 async function handleUnholdCommand(value, machineId) {
     const timestamp = moment().tz(TIMEZONE).toISOString();
-    console.log(
+    oeeLogger.info(
         `handleUnholdCommand called with value: ${value}, machineId: ${machineId}`
     );
 
@@ -100,7 +100,7 @@ async function handleUnholdCommand(value, machineId) {
  */
 async function handleProcessOrderStartCommand(machineId) {
     const timestamp = moment().tz(TIMEZONE).toISOString();
-    console.log(
+    oeeLogger.info(
         `handleProcessOrderStart called for machineId: ${machineId} at ${timestamp}`
     );
 
@@ -113,7 +113,7 @@ async function handleProcessOrderStartCommand(machineId) {
         const processOrder = response.data[0];
         // Remove the "marked" field from the processOrder object
         delete processOrder.marked;
-        console.log(processOrder);
+        oeeLogger.info(processOrder);
 
         if (processOrder) {
             const processOrderId = processOrder.order_id;
@@ -164,7 +164,7 @@ async function handleProcessOrderEndCommand(machineId) {
 
         if (processOrder) {
             const processOrderId = processOrder.order_id;
-            console.log(`Process Order End for ProcessOrderID: ${processOrderId}`);
+            oeeLogger.info(`Process Order End for ProcessOrderID: ${processOrderId}`);
 
             // Update the ActualProcessOrderEnd field
             processOrder.ActualProcessOrderEnd = timestamp;

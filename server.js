@@ -40,7 +40,7 @@ const { initializeInfluxDB } = require("./services/influxDBService");
 const registerApiRoutes = require("./routes/apiRoutes"); // Centralized API route registration
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 4000;
 
 /**
  * Security Middleware Setup
