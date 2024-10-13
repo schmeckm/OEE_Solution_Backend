@@ -16,9 +16,27 @@ function setWebSocketServer(server) {
         console.log("Client connected");
         oeeLogger.info("Client connected to WebSocket.");
 
+        // Set up ping/pong mechanism to detect broken connections
+        ws.isAlive = true;
+        ws.on('pong', () => {
+            ws.isAlive = true;
+        });
+
+        const interval = setInterval(() => {
+            wsServer.clients.forEach((client) => {
+                if (client.isAlive === false) {
+                    client.terminate(); // Terminate the connection if the client did not respond
+                    oeeLogger.info('Terminated inactive WebSocket client.');
+                } else {
+                    client.isAlive = false;
+                    client.ping(); // Send a ping to the client
+                }
+            });
+        }, 30000); // Ping every 30 seconds
+
         // Send initial machine stoppages data to the newly connected client
         try {
-            const machineStoppagesData = await loadMachineStoppagesData(); // Await if asynchronous
+            const machineStoppagesData = await loadMachineStoppagesData();
             sendWebSocketMessage("Microstops", machineStoppagesData);
             oeeLogger.info("Initial machine stoppages data sent to WebSocket client.");
         } catch (error) {
@@ -28,6 +46,11 @@ function setWebSocketServer(server) {
         ws.on("close", () => {
             console.log("Client disconnected");
             oeeLogger.info("WebSocket client disconnected.");
+            clearInterval(interval); // Stop the ping interval when the client disconnects
+        });
+
+        ws.on("error", (error) => {
+            errorLogger.error(`WebSocket error: ${error.message}`);
         });
     });
 }

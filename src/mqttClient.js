@@ -78,7 +78,6 @@ async function handleIncomingMessage(topic, message) {
     try {
         const machineId = await validateMachineId(machineName);
         const hasRunningOrder = await checkForRunningOrder(machineId);
-        defaultLogger.info("Checking for running order:", hasRunningOrder);
         if (!hasRunningOrder) {
             oeeLogger.error(`No running order found for machine ${machineName} (machine_id=${machineId}). Skipping OEE calculation.`);
             return;

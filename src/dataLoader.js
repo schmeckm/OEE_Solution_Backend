@@ -8,7 +8,6 @@ const { oeeLogger, errorLogger } = require("../utils/logger");
 dotenv.config();
 
 const OEE_API_URL = process.env.OEE_API_URL;
-console.log(OEE_API_URL);
 
 // Caches for various data
 let unplannedDowntimeCache = null;
@@ -28,7 +27,6 @@ async function loadMachineData() {
         try {
             const response = await axios.get(`${OEE_API_URL}/machines`);
             machineDataCache = response.data;
-            oeeLogger.info(`Machine data loaded successfully.`);
         } catch (error) {
             errorLogger.error(`Failed to load machine data: ${error.message}`);
             throw error;
