@@ -1,9 +1,16 @@
+name: Deploy Node.js Application
+
+on:
+  push:
+    branches:
+      - main
+
 jobs:
   deploy:
     runs-on: self-hosted
 
     steps:
-      # Schritt 1: Repository klonen 2
+      # Schritt 1: Repository klonen
       - name: Checkout repository
         uses: actions/checkout@v3
 
