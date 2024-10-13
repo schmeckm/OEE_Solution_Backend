@@ -13,27 +13,39 @@ let lastModifiedTime = 0;
  * wenn die Datei seit dem letzten Laden geändert wurde.
  */
 const loadMachines = () => {
+    console.log(`Trying to load machines from: ${MACHINE_FILE}`);
+
     if (fs.existsSync(MACHINE_FILE)) {
+        console.log(`File exists: ${MACHINE_FILE}`);
+
         // Überprüfen, ob die Datei seit dem letzten Laden geändert wurde
         const stats = fs.statSync(MACHINE_FILE);
         const modifiedTime = stats.mtimeMs;
 
         // Wenn die Datei nicht geändert wurde, verwenden wir den Cache
         if (machineCache && lastModifiedTime === modifiedTime) {
+            console.log("Using cached machine data.");
             return machineCache;
         }
 
         // Datei neu laden und Cache aktualisieren, wenn sie geändert wurde
-        const data = fs.readFileSync(MACHINE_FILE, "utf8");
-        machineCache = JSON.parse(data);
-        lastModifiedTime = modifiedTime;
+        try {
+            const data = fs.readFileSync(MACHINE_FILE, "utf8");
+            console.log("File read successfully, parsing data...");
+            machineCache = JSON.parse(data);
+            lastModifiedTime = modifiedTime;
 
-        return machineCache;
+            return machineCache;
+        } catch (error) {
+            console.error(`Error reading or parsing file: ${error.message}`);
+            return [];
+        }
     } else {
-        // Wenn die Datei nicht existiert, eine leere Liste zurückgeben
+        console.error(`File does not exist: ${MACHINE_FILE}`);
         return [];
     }
 };
+
 
 /**
  * Hilfsfunktion zum Speichern der Maschineninformationen und Aktualisieren des Caches.
