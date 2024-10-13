@@ -1,66 +1,78 @@
 const nodemailer = require('nodemailer');
-const winston = require('winston'); // Logging-Tool, z.B. winston
+const path = require('path');
+require('dotenv').config(); // Load environment variables
 
-// Setup des Loggers
-const logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.printf(({ timestamp, level, message }) => {
-            return `${timestamp} [${level.toUpperCase()}] - ${message}`;
-        })
-    ),
-    transports: [
-        new winston.transports.Console(),
-        new winston.transports.File({ filename: 'email.log' }) // Loggt Fehler in eine Datei
-    ]
-});
-
-// Überprüfen der Umgebungsvariablen
-logger.info(`Email user: ${process.env.EMAIL_USER}`); // Sensitive information nur für Debugging
-logger.info(`Email pass: ${process.env.EMAIL_PASS ? 'Passwort ist gesetzt' : 'Passwort fehlt'}`);
-
+// Erstellen des Transporters
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+        user: 'oeesolution@gmail.com',
+        pass: 'ysgl ylns upvx qqne',
     },
     tls: {
-        rejectUnauthorized: false
-    }
+        rejectUnauthorized: false,
+    },
 });
 
+// Funktion zur Erstellung des E-Mail-Inhalts
+const createWelcomeEmail = (firstName) => {
+    return `
+        <p>Hallo ${firstName},</p>
+        <p>Vielen Dank für Ihre Registrierung bei uns! Hier ist ein Bild:</p>
+        <img src="cid:welcomeImage" alt="Welcome Image" style="max-width: 20%; height: auto;">
+        <p>Was ist OEE (Overall Equipment Effectiveness)?</p>
+        <p>
+            OEE ist eine Kennzahl, die die Effizienz von Produktionsanlagen misst. Sie wird verwendet, um die Verfügbarkeit, Leistung und Qualität eines Produktionsprozesses zu bewerten. 
+            OEE hilft dabei, Verlustquellen zu identifizieren und die Produktionsleistung zu verbessern. Eine höhere OEE bedeutet, dass eine Anlage effizienter arbeitet, was zu 
+            geringeren Kosten und höheren Gewinnen führt.
+        </p>
+        <p>Mit besten Grüßen,<br>Das Team</p>
+    `;
+};
+
 // Funktion zum Senden von Willkommens-E-Mails
-const sendWelcomeEmail = (email, firstName) => {
+const sendWelcomeEmail = async(email, firstName) => {
+    if (!validateEmail(email)) {
+        console.error(`Ungültige E-Mail-Adresse: ${email}`);
+        return;
+    }
+
     console.log(`Sende Willkommens-E-Mail an ${email}`);
-    console.log('First Name:', firstName);
 
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
         subject: 'Willkommen in unserer Anwendung!',
-        text: `Hallo ${firstName},\n\nVielen Dank für Ihre Registrierung bei uns! Wir freuen uns, Sie an Bord zu haben. Hier sind einige hilfreiche Ressourcen, um Ihnen den Einstieg zu erleichtern:\n\n- [Einstiegsanleitung](link-to-guide)\n- [Support-Seite](link-to-support)\n\nMit besten Grüßen,\nDas Team`,
+        text: `Hallo ${firstName}, vielen Dank für Ihre Registrierung bei uns!`,
+        html: createWelcomeEmail(firstName),
+        attachments: [{
+            filename: 'welcome.png', // Name of the file in the email
+            path: path.join(__dirname, 'welcome.png'), // Path to the image file
+            cid: 'welcomeImage' // This is the content ID used in the HTML
+        }]
     };
 
-    return transporter.sendMail(mailOptions)
-        .then(info => {
-            console.log(`E-Mail erfolgreich gesendet an ${email}: ${info.response}`);
-            return info;
-        })
-        .catch(error => {
-            // Spezifischere Fehlermeldungen loggen
-            if (error.responseCode === 535) {
-                console.log(`Fehler beim Senden der E-Mail an ${email}: Falsche Anmeldedaten.`);
-            } else if (error.code === 'ENOTFOUND') {
-                console.log(`Fehler beim Senden der E-Mail an ${email}: SMTP-Server nicht gefunden.`);
-            } else {
-                console.log(`Fehler beim Senden der E-Mail an ${email}: ${error.message}`);
-            }
-            throw error; // Fehler weiterreichen, um extern behandelt zu werden
-        });
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`E-Mail erfolgreich gesendet an ${email}: ${info.response}`);
+    } catch (error) {
+        handleEmailError(error, email);
+    }
 };
 
-module.exports = {
-    sendWelcomeEmail,
+// Funktion zur Validierung der E-Mail-Adresse
+const validateEmail = (email) => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
 };
+
+// Funktion zur Verarbeitung von E-Mail-Fehlern
+const handleEmailError = (error, email) => {
+    console.error(`Fehler beim Senden der E-Mail an ${email}:`, error);
+};
+
+// Test the function
+const testEmail = 'markus.schmeckenbecher@gmail.com'; // Replace with a valid recipient email
+const testName = 'Markus Schmeckenbecher'; // Replace with a test first name
+
+//sendWelcomeEmail(testEmail, testName);

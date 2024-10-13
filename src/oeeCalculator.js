@@ -71,7 +71,7 @@ class OEECalculator {
         try {
             oeeLogger.info(`Initializing OEECalculator for machineId ${machineId}`);
             const OEEData = await fetchOEEDataFromAPI(machineId);
-            oeeLogger.info(`Fetched OEEData for machineId ${machineId}:`, OEEData); // Protokolliere die erhaltenen Daten
+            oeeLogger.debug(`Fetched OEEData for machineId ${machineId}:`, OEEData); // Protokolliere die erhaltenen Daten
             if (OEEData) {
                 this.setOEEData(OEEData, machineId);
             } else {
@@ -91,7 +91,7 @@ class OEECalculator {
             throw new Error("Required time fields (Start/End) are missing in the data");
         }
 
-        oeeLogger.info(`Setting OEE data for machineId ${machineId}:`, processOrder);
+        oeeLogger.debug(`Setting OEE data for machineId ${machineId}:`, processOrder);
 
         const plannedStart = moment(processOrder.Start);
         const plannedEnd = moment(processOrder.End);
@@ -159,7 +159,7 @@ class OEECalculator {
                 throw new Error(`No data found for machineId: ${machineId}`);
             }
 
-            oeeLogger.info(`Calculating metrics for machineId ${machineId}`);
+            oeeLogger.debug(`Calculating metrics for machineId ${machineId}`);
 
             const {
                 ActualProcessOrderStart,

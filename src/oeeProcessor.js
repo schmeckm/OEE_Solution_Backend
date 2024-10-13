@@ -96,7 +96,7 @@ async function updateMetric(name, value, machineId) {
         }
 
         const buffer = metricBuffers.get(machineId);
-        oeeLogger.info(`Updating buffer for machine ${machineId}:`, buffer);
+        oeeLogger.debug(`Updating buffer for machine ${machineId}:`, buffer);
 
         // Überprüfen, ob der neue Wert anders ist als der gespeicherte Wert
         if (buffer[name] !== value) {
@@ -151,7 +151,7 @@ async function processMetrics(machineId, buffer) {
             (buffer && buffer.ActualProductionYield) || 0; // Fallback auf 0, wenn der Wert nicht existiert
 
         // Protokolliere die Werte, bevor die Berechnung beginnt
-        oeeLogger.log(`Calculating metrics for machineId ${machineId} with values:`, {
+        oeeLogger.debug(`Calculating metrics for machineId ${machineId} with values:`, {
             UnplannedDowntime: totalTimes.UnplannedDowntime,
             plannedDowntime: totalTimes.plannedDowntime + totalTimes.breakTime + totalTimes.microstops,
             ActualProductionQuantity,
@@ -172,7 +172,7 @@ async function processMetrics(machineId, buffer) {
         const metrics = calculator.getMetrics(machineId);
 
         // Protokolliere die berechneten Metriken
-        oeeLogger.info(`Metrics for machineId ${machineId}:`, metrics);
+        oeeLogger.debug(`Metrics for machineId ${machineId}:`, metrics);
 
         if (!metrics) {
             throw new Error(`Metrics could not be calculated for machineId: ${machineId}.`);
@@ -191,7 +191,7 @@ async function processMetrics(machineId, buffer) {
                 oeeLogger.debug("Metrics written to InfluxDB.");
             }
         } else {
-            oeeLogger.info(`Process Order for machine ${machineId} is not completed. InfluxDB write skipped.`);
+            oeeLogger.debug(`Process Order for machine ${machineId} is not completed. InfluxDB write skipped.`);
         }
 
         // WebSocket-Nachricht nur senden, wenn WEBSOCKET=true ist
@@ -199,7 +199,7 @@ async function processMetrics(machineId, buffer) {
             sendWebSocketMessage("OEEData", metrics);
             oeeLogger.info("OEE data sent to WebSocket clients.");
         } else {
-            oeeLogger.info("WebSocket is disabled, skipping data send.");
+            oeeLogger.debug("WebSocket is disabled, skipping data send.");
         }
 
     } catch (error) {
@@ -208,7 +208,7 @@ async function processMetrics(machineId, buffer) {
 }
 
 function logMetricBuffer() {
-    oeeLogger.info("Current state of metric buffers:");
+    oeeLogger.debug("Current state of metric buffers:");
     metricBuffers.forEach((buffer, machineId) => {
         oeeLogger.warn(`Machine ID: ${machineId}`);
         Object.keys(buffer).forEach((metricName) => {

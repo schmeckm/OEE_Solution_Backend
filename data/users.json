@@ -1,31 +1,41 @@
-[{
-        "id": 1,
-        "username": "admin",
-        "password": "$2b$10$A2d1E8y8JfZKm0JmJe4ubO0m8G4R4bJ3O8K9a8YZ.y1ZWkhHJEMtK",
-        "role": "admin"
-    },
-    {
-        "id": 2,
-        "username": "user",
-        "password": "$2b$10$YQ1fD4vhG9r8JmGzsdofOOkPoGZJe87rt65Izs8t49T8FJ2I7LaEm",
-        "role": "user"
-    },
-    {
-        "id": 4,
-        "salutation": "",
-        "firstName": "",
-        "username": "OEE Solution",
-        "email": "oeesolution@gmail.com",
-        "password": null,
-        "role": "user"
-    },
-    {
-        "id": 5,
-        "salutation": null,
-        "firstName": null,
-        "username": "Markus Schmeckenbecher",
-        "email": "markus.schmeckenbecher@gmail.com",
-        "password": null,
-        "role": "user"
-    }
+[
+  {
+    "id": 1,
+    "username": "admin",
+    "password": "$2b$10$A2d1E8y8JfZKm0JmJe4ubO0m8G4R4bJ3O8K9a8YZ.y1ZWkhHJEMtK",
+    "role": "admin"
+  },
+  {
+    "id": 2,
+    "username": "user",
+    "password": "$2b$10$YQ1fD4vhG9r8JmGzsdofOOkPoGZJe87rt65Izs8t49T8FJ2I7LaEm",
+    "role": "user"
+  },
+  {
+    "id": 4,
+    "salutation": "",
+    "firstName": "",
+    "username": "OEE Solution",
+    "email": "oeesolution@gmail.com",
+    "password": null,
+    "role": "user"
+  },
+  {
+    "id": 5,
+    "salutation": null,
+    "firstName": null,
+    "username": "Markus Schmeckenbecher",
+    "email": "markus.schmeckenbecher@gmail.com",
+    "password": null,
+    "role": "user"
+  },
+  {
+    "id": 6,
+    "salutation": "Mr",
+    "firstName": "sfsfs",
+    "username": "markus.schmeckenbecher@roche.com",
+    "email": "sfsfsffs@dd.de",
+    "password": "$2b$10$jAUsCvF77M3rDrveZev31ujIoPfWVt8gxtCJ88J85r8AdLwiKmlLu",
+    "role": "user"
+  }
 ]

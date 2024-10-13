@@ -2,8 +2,8 @@
     "mqtt": {
         "brokerUrl": "mqtt://broker.hivemq.com",
         "brokerPort": 1883,
-        "username": "your_mqtt_username",
-        "password": "your_mqtt_password"
+        "username": "test",
+        "password": "test"
     },
     "classificationLevels": {
         "WORLD_CLASS": 85,
@@ -20,7 +20,6 @@
     "port": 3000,
     "logRetentionDays": 2,
     "oeeAsPercent": true,
-    "oeeApiUrl": "http://localhost:3000",
     "influxdb": {
         "url": "http://136.244.90.128:8086",
         "token": "b3RRWjHvQ9fQyBYgrqLHlYdPdu4SEZz8_CXApmIrzRkuL7ElNQyB9ZF7Dfi9Ak6ROqz54nc8nUhU3WJ9rQzljw==",

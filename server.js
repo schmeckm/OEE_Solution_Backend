@@ -5,15 +5,29 @@ const express = require("express");
 const path = require("path");
 const dotenv = require("dotenv");
 const helmet = require("helmet");
+const art = require('ascii-art');
 const rateLimit = require("express-rate-limit");
 const { Server } = require("ws");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
-// Importiere Passport-Konfiguration
 
+// Show ASCII Art in the console
+art.font('Event Triggered OEE Solution', 'Doom', function(err, rendered) {
+    if (err) {
+        console.error(err);
+    } else {
+        console.log(rendered);
+        console.log('Author: Markus Schmeckenbecher');
+        console.log('Version: 0.9');
+    }
+});
+
+// Importiere Passport-Configuration
 const initializePassport = require('./utils/passportConfig');
 
+//Initial 
 dotenv.config();
+
 
 const { defaultLogger } = require("./utils/logger");
 const { logRetentionDays } = require("./config/config");

@@ -42,7 +42,6 @@ const envSchema = Joi.object({
     INFLUXDB_BUCKET: Joi.string().allow(null),
     TOPIC_FORMAT: Joi.string().default('spBv1.0/group_id/message_type/edge_node_id'),
     PLANNED_DOWNTIME_API_URL: Joi.alternatives().try(Joi.string().uri(), Joi.allow(null, '')),
-    OEE_API_URL: Joi.string().uri().default(jsonConfig.oeeApiUrl),
     THRESHOLD_SECONDS: Joi.number().integer().default(300),
     DATE_FORMAT: Joi.string().default(jsonConfig.dateSettings.dateFormat),
     TIMEZONE: Joi.string().default(jsonConfig.dateSettings.timezone)

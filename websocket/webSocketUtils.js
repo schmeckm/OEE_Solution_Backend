@@ -51,8 +51,6 @@ function sendWebSocketMessage(type, data) {
                 }
             }
         });
-
-        oeeLogger.info(`${type} data sent to WebSocket clients.`);
     } else {
         errorLogger.error("WebSocket server instance is not set.");
     }
