@@ -136,7 +136,7 @@ async function tryToSubscribeToMachineTopics(client) {
     try {
         const allMachines = await loadMachineData();
         const oeeEnabledMachines = allMachines.filter((machine) => machine.OEE === true);
-        oeeLogger.info("Subscribing to MQTT topics for OEE-enabled machines...", oeeEnabledMachines);
+        oeeLogger.info("Subscribing to MQTT topics for OEE-enabled machines", oeeEnabledMachines);
 
         await Promise.all(
             oeeEnabledMachines.map(async(machine) => {

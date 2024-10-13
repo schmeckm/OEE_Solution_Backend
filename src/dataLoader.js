@@ -8,6 +8,7 @@ const { oeeLogger, errorLogger } = require("../utils/logger");
 dotenv.config();
 
 const OEE_API_URL = process.env.OEE_API_URL;
+console.log(OEE_API_URL);
 
 // Caches for various data
 let unplannedDowntimeCache = null;
