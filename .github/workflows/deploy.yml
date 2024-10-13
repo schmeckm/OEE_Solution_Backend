@@ -1,0 +1,25 @@
+name: Deploy Node.js Application
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      # Schritt 1: Repository klonen
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Schritt 2: Installieren der Abhängigkeiten
+      - name: Install Dependencies
+        run: |
+          yarn install
+
+      # Schritt 3: Anwendung neu starten (PM2)
+      - name: Restart Application
+        run: |
+          pm2 restart OEE_solution || pm2 start server.js --name "OEE_solution"

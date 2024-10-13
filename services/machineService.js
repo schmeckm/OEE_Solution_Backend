@@ -1,8 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const MACHINE_FILE = path.join(__dirname, "../data/machine.json");
-
+const MACHINE_FILE = path.resolve(__dirname, "../data/machine.json");
+console.log("MACHINE_FILE ist wie folgt definiert: " + MACHINE_FILE);
 // Cache-Variablen
 let machineCache = null;
 let lastModifiedTime = 0;
