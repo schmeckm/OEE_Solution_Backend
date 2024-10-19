@@ -28,7 +28,6 @@ const initializePassport = require('./utils/passportConfig');
 //Initial 
 dotenv.config();
 
-
 const { defaultLogger } = require("./utils/logger");
 const { logRetentionDays } = require("./config/config");
 const { setWebSocketServer } = require("./src/oeeProcessor");
@@ -50,7 +49,6 @@ const port = process.env.PORT || 4000;
  * - `express.static()`: Serves static files from the 'public' directory.
  * - `rateLimit`: Limits the number of requests from a single IP to prevent DoS attacks.
  */
-
 app.use(helmet());
 
 // Set up Content Security Policy with Helmet
@@ -59,9 +57,9 @@ app.use(
         useDefaults: true,
         directives: {
             "img-src": ["'self'", "https:", "data:", "https://lh3.googleusercontent.com"],
-            // You can also add more directives as needed
             "default-src": ["'self'"],
-            "script-src": ["'self'", "'unsafe-inline'"] // Make sure to allow inline scripts if needed
+            "script-src": ["'self'"], // Vermeidung von 'unsafe-inline' Skripten
+            "style-src": ["'self'", "'unsafe-inline'"], // Falls nötig, könnte `unsafe-inline` für Styles bestehen bleiben, aber Skripte sollten immer sicher sein.
         }
     })
 );
@@ -115,8 +113,8 @@ const swaggerOptions = {
                 API, including endpoint descriptions, request parameters, response formats, and example use cases.`,
         },
         servers: [{
-            url: `http://localhost:${port}/api/v1`, // Adjust your base URL
-        }, ],
+            url: `http://localhost:${port}/api/v1`, // HTTP URL
+        }],
     },
     apis: ["./routes/*.js"], // Path to your API routes
 };
@@ -152,13 +150,13 @@ const mqttClient = initializeMqttClient();
 
 /**
  * HTTP Server Initialization
- * Starts the Express server on the specified port.
+ * Starts the HTTP server on the specified port.
  * Logs the success of the server start.
  * @function
  * @memberof module:server
  */
-const server = app.listen(port, () => {
-    defaultLogger.info(`Server is running on port ${port}`);
+const httpServer = app.listen(port, () => {
+    defaultLogger.info(`HTTP Server is running on port ${port}`);
 });
 
 /**
@@ -168,7 +166,7 @@ const server = app.listen(port, () => {
  * @function
  * @memberof module:webSocketHandler
  */
-const wss = new Server({ server });
+const wss = new Server({ server: httpServer });
 
 /**
  * Handle WebSocket Connections
@@ -196,5 +194,5 @@ setWebSocketServer(wss);
  * @function
  * @memberof module:shutdown
  */
-process.on("SIGTERM", () => gracefulShutdown(server, mqttClient, "SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown(server, mqttClient, "SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown(httpServer, mqttClient, "SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown(httpServer, mqttClient, "SIGINT"));

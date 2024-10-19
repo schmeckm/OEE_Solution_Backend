@@ -6,8 +6,8 @@ require('dotenv').config(); // Load environment variables
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'oeesolution@gmail.com',
-        pass: 'ysgl ylns upvx qqne',
+        user: process.env.EMAIL_USER, // Sicherer: Zugangsdaten aus Umgebungsvariablen
+        pass: process.env.EMAIL_PASS, // Sicherer: Zugangsdaten aus Umgebungsvariablen
     },
     tls: {
         rejectUnauthorized: false,

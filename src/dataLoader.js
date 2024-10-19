@@ -276,7 +276,7 @@ async function loadShiftModelData(machineId) {
         );
         if (Array.isArray(response.data)) {
             shiftModelCache[machineId] = response.data;
-            oeeLogger.info(
+            oeeLogger.debug(
                 `Shift model data loaded successfully for machine ID: ${machineId}`
             );
             return shiftModelCache[machineId];

@@ -131,18 +131,19 @@ async function validateMachineId(machineName) {
  * Subscribes the MQTT client to relevant topics for OEE-enabled machines.
  * @param {mqtt.Client} client - The MQTT client instance.
  */
-async function tryToSubscribeToMachineTopics(client) {
+async function tryToSubscribeToMachineTopics(client, batchSize = 10) {
     try {
         const allMachines = await loadMachineData();
         const oeeEnabledMachines = allMachines.filter((machine) => machine.OEE === true);
-        oeeLogger.info("Subscribing to MQTT topics for OEE-enabled machines", oeeEnabledMachines);
 
-        await Promise.all(
-            oeeEnabledMachines.map(async(machine) => {
+        // Batching für bessere Performance
+        for (let i = 0; i < oeeEnabledMachines.length; i += batchSize) {
+            const batch = oeeEnabledMachines.slice(i, i + batchSize);
+            await Promise.all(batch.map(async(machine) => {
                 const topics = generateMqttTopics(machine);
                 await Promise.all(topics.map((topic) => subscribeWithRetry(client, topic, 5, 1000)));
-            })
-        );
+            }));
+        }
 
         oeeLogger.info("All machines processed for MQTT topics subscription.");
     } catch (error) {
