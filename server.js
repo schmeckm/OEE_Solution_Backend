@@ -160,7 +160,7 @@ const httpServer = app.listen(port, () => {
 });
 
 /**
- * WebSocket Server Setup and Handling
+ * WebSocket Server Setup   
  * Initializes the WebSocket server, attaches it to the HTTP server,
  * and delegates connection handling to a dedicated function.
  * @function
