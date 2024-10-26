@@ -22,5 +22,9 @@ jobs:
       # Schritt 3: Anwendung starten oder neu starten (PM2)
       - name: Start or Restart Application
         run: |
-          pm2 describe OEE_solution > /dev/null || pm2 start server.js --name "OEE_solution"
-          pm2 restart OEE_solution --update-env
+          pm2 start server.js --name "OEE_solution" --update-env || pm2 restart OEE_solution --update-env
+
+      # Schritt 4: Überprüfung der PM2 Logs für mögliche Fehler
+      - name: Check PM2 Logs
+        run: |
+          pm2 logs OEE_solution --lines 50
