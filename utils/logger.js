@@ -7,20 +7,16 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 // Define the log format
-const logFormat = winston.format.printf(
-  ({ level, message, timestamp, ...metadata }) => {
+const logFormat = winston.format.printf(({ level, message, timestamp, ...metadata }) => {
     let logMessage = `${timestamp} ${level}: ${message}`;
     if (Object.keys(metadata).length) {
-      logMessage += `\n${JSON.stringify(metadata, null, 2)}`;
+        logMessage += `\n${JSON.stringify(metadata, null, 2)}`;
     }
     return logMessage;
-  }
-);
+});
 
 // Load log levels and settings
-const logLevels = (process.env.LOG_LEVELS || "info")
-  .split(",")
-  .map((level) => level.trim());
+const logLevels = (process.env.LOG_LEVELS || "info").split(",").map(level => level.trim());
 const retentionDays = process.env.LOG_RETENTION_DAYS || 14;
 const logToConsole = process.env.LOG_TO_CONSOLE === "true";
 const logToFile = process.env.LOG_TO_FILE === "true";
@@ -30,9 +26,7 @@ const logToFile = process.env.LOG_TO_FILE === "true";
  * @param {Object} info - Log information.
  * @returns {Object|boolean} Log information or false if the level is not included.
  */
-const customFilter = winston.format((info) =>
-  logLevels.includes(info.level) ? info : false
-);
+const customFilter = winston.format((info) => logLevels.includes(info.level) ? info : false);
 
 /**
  * Helper function to create a log transport.
@@ -41,34 +35,34 @@ const customFilter = winston.format((info) =>
  * @returns {Object|null} - Configured transport or null if not applicable.
  */
 const createTransport = (type, filename) => {
-  if (type === "console" && logToConsole) {
-    return new winston.transports.Console({
-      level: logLevels[0],
-      format: winston.format.combine(
-        customFilter(),
-        winston.format.colorize(),
-        winston.format.timestamp(),
-        logFormat
-      ),
-    });
-  }
+    if (type === "console" && logToConsole) {
+        return new winston.transports.Console({
+            level: logLevels[0],
+            format: winston.format.combine(
+                customFilter(),
+                winston.format.colorize(),
+                winston.format.timestamp(),
+                logFormat
+            ),
+        });
+    }
 
-  if (type === "file" && logToFile) {
-    return new DailyRotateFile({
-      filename: path.join(__dirname, `../logs/${filename}-%DATE%.log`),
-      datePattern: "YYYY-MM-DD",
-      maxSize: "20m",
-      maxFiles: `${retentionDays}d`,
-      level: logLevels[0],
-      format: winston.format.combine(
-        customFilter(),
-        winston.format.timestamp(),
-        logFormat
-      ),
-    });
-  }
+    if (type === "file" && logToFile) {
+        return new DailyRotateFile({
+            filename: path.join(__dirname, `../logs/${filename}-%DATE%.log`),
+            datePattern: "YYYY-MM-DD",
+            maxSize: "20m",
+            maxFiles: `${retentionDays}d`,
+            level: logLevels[0],
+            format: winston.format.combine(
+                customFilter(),
+                winston.format.timestamp(),
+                logFormat
+            ),
+        });
+    }
 
-  return null;
+    return null;
 };
 
 /**
@@ -77,39 +71,43 @@ const createTransport = (type, filename) => {
  * @returns {Object} Winston logger.
  */
 const createLogger = (logFilename = "app") => {
-  const transports = [];
-  const exceptionHandlers = [];
-  const rejectionHandlers = [];
+    const transports = [];
+    const exceptionHandlers = [];
+    const rejectionHandlers = [];
 
-  if (logToConsole) {
-    const consoleTransport = createTransport("console");
-    if (consoleTransport) {
-      transports.push(consoleTransport);
+    if (logToConsole) {
+        const consoleTransport = createTransport("console");
+        if (consoleTransport) {
+            transports.push(consoleTransport);
+        }
     }
-  }
 
-  if (logToFile) {
-    const fileTransport = createTransport("file", logFilename);
-    if (fileTransport) {
-      transports.push(fileTransport);
-      exceptionHandlers.push(createTransport("file", "exceptions"));
-      rejectionHandlers.push(createTransport("file", "rejections"));
+    if (logToFile) {
+        const fileTransport = createTransport("file", logFilename);
+        if (fileTransport) {
+            transports.push(fileTransport);
+            exceptionHandlers.push(createTransport("file", "exceptions"));
+            rejectionHandlers.push(createTransport("file", "rejections"));
+        }
     }
-  }
 
-  return winston.createLogger({
-    level: logLevels[0],
-    format: winston.format.combine(
-      customFilter(),
-      winston.format.timestamp(),
-      winston.format.json()
-    ),
-    transports,
-    exceptionHandlers:
-      exceptionHandlers.length > 0 ? exceptionHandlers : undefined,
-    rejectionHandlers:
-      rejectionHandlers.length > 0 ? rejectionHandlers : undefined,
-  });
+    // Check if there are any transports, and throw an error if none exist
+    if (transports.length === 0) {
+        console.error("No transports configured for logging. At least one transport is required.");
+        throw new Error("Logging configuration error: No transports available.");
+    }
+
+    return winston.createLogger({
+        level: logLevels[0],
+        format: winston.format.combine(
+            customFilter(),
+            winston.format.timestamp(),
+            winston.format.json()
+        ),
+        transports,
+        exceptionHandlers: exceptionHandlers.length > 0 ? exceptionHandlers : undefined,
+        rejectionHandlers: rejectionHandlers.length > 0 ? rejectionHandlers : undefined,
+    });
 };
 
 // Create logger instances for different purposes
@@ -122,13 +120,11 @@ const unplannedDowntimeLogger = createLogger("unplannedDowntime");
 oeeLogger.info("OEE Logger initialized successfully.");
 errorLogger.info("Error Logger initialized successfully.");
 defaultLogger.info("Default Logger initialized successfully.");
-unplannedDowntimeLogger.info(
-  "Unplanned Downtime Logger initialized successfully."
-);
+unplannedDowntimeLogger.info("Unplanned Downtime Logger initialized successfully.");
 
 module.exports = {
-  oeeLogger,
-  errorLogger,
-  defaultLogger,
-  unplannedDowntimeLogger,
+    oeeLogger,
+    errorLogger,
+    defaultLogger,
+    unplannedDowntimeLogger,
 };
