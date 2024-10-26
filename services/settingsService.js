@@ -2,10 +2,15 @@ const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
 const Joi = require("joi");
-const lockfile = require("proper-lockfile"); // Bibliothek für Dateisperren
+const lockfile = require("proper-lockfile");
+const envfile = require("envfile"); // Import von envfile für das Schreiben von Konfigurationsdateien
+
+// Lädt Umgebungsvariablen
+dotenv.config();
 
 const ENV_FILE = path.join(__dirname, "../.env"); // Verweis auf das Root-Verzeichnis
 
+// Schema für die Validierung der Umgebungsvariablen
 const envSchema = Joi.object({
         MQTT_BROKER_URL: Joi.string().uri().required(),
         MQTT_BROKER_PORT: Joi.number().integer().default(1883),
@@ -22,9 +27,7 @@ const envSchema = Joi.object({
         INFLUXDB_TOKEN: Joi.string().allow(null),
         INFLUXDB_ORG: Joi.string().allow(null),
         INFLUXDB_BUCKET: Joi.string().allow(null),
-        TOPIC_FORMAT: Joi.string().default(
-            "spBv1.0/group_id/message_type/edge_node_id"
-        ),
+        TOPIC_FORMAT: Joi.string().default("spBv1.0/group_id/message_type/edge_node_id"),
         PLANNED_DOWNTIME_API_URL: Joi.alternatives().try(
             Joi.string().uri(),
             Joi.allow(null, "")
@@ -34,9 +37,10 @@ const envSchema = Joi.object({
     .unknown()
     .required();
 
+// Funktion zum Laden der Konfiguration aus der .env Datei
 const loadEnvConfig = () => {
     try {
-        console.log(`Reading .env file from path: ${ENV_FILE}`); // Debugging-Ausgabe
+        console.log(`Reading .env file from path: ${ENV_FILE}`);
         if (fs.existsSync(ENV_FILE)) {
             const data = fs.readFileSync(ENV_FILE, "utf8");
             console.log(`Successfully read .env file: ${ENV_FILE}`);
@@ -51,7 +55,9 @@ const loadEnvConfig = () => {
     }
 };
 
+// Funktion zum Speichern der Konfiguration in der .env Datei
 const saveEnvConfig = (config) => {
+    // Validierung der Konfiguration
     const { error, value: envVars } = envSchema.validate(config, {
         allowUnknown: true,
         stripUnknown: true,
@@ -67,9 +73,10 @@ const saveEnvConfig = (config) => {
             throw new Error("File is locked");
         }
 
+        // Sperre setzen
         const release = lockfile.lockSync(ENV_FILE); // Datei sperren
         try {
-            const envData = envfile.stringify(envVars);
+            const envData = envfile.stringify(envVars); // Daten für .env Datei formatieren
             fs.writeFileSync(ENV_FILE, envData);
             console.log(`Successfully saved .env file: ${ENV_FILE}`);
         } finally {
