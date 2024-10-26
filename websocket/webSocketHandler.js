@@ -10,6 +10,27 @@ function handleWebSocketConnections(wss) {
     wss.on('connection', (ws, req) => {
         defaultLogger.info('WebSocket connection established');
 
+        // Set up ping/pong mechanism to detect broken connections
+        ws.isAlive = true;
+
+        // Listener for pong event to mark client as alive
+        ws.on('pong', () => {
+            ws.isAlive = true;
+        });
+
+        // Ping clients every 30 seconds to check if they are alive
+        const interval = setInterval(() => {
+            wss.clients.forEach(client => {
+                if (client.isAlive === false) {
+                    client.terminate(); // Terminate the connection if the client did not respond
+                    defaultLogger.info('Terminated inactive WebSocket client.');
+                } else {
+                    client.isAlive = false;
+                    client.ping(); // Send a ping to the client
+                }
+            });
+        }, 30000); // Ping every 30 seconds
+
         // Handle incoming messages from WebSocket clients
         ws.on('message', (message) => {
             try {
@@ -44,6 +65,7 @@ function handleWebSocketConnections(wss) {
         // Handle WebSocket connection closure
         ws.on('close', () => {
             defaultLogger.info('WebSocket connection closed');
+            clearInterval(interval); // Stop the ping interval when the client disconnects
         });
 
         // Handle WebSocket errors

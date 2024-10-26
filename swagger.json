@@ -1,0 +1,2817 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "OEE System API Documentation",
+    "version": "1.0.0",
+    "description": "Welcome to the OEE (Overall Equipment Effectiveness) System API documentation..."
+  },
+  "servers": [
+    {
+      "url": "https://localhost/api/v1"
+    }
+  ],
+  "paths": {
+    "/machines": {
+      "get": {
+        "summary": "Get all machines",
+        "tags": [
+          "Machines"
+        ],
+        "description": "Retrieve a list of all machines.",
+        "responses": {
+          "200": {
+            "description": "A list of machines.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new machine",
+        "tags": [
+          "Machines"
+        ],
+        "description": "Create a new machine.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Machine created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "machine": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/machines/{id}": {
+      "get": {
+        "summary": "Get a specific machine",
+        "tags": [
+          "Machines"
+        ],
+        "description": "Retrieve a single machine by ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The machine ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A machine object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Machine not found."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update an existing machine",
+        "tags": [
+          "Machines"
+        ],
+        "description": "Update the details of an existing machine.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The machine ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Machine updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "machine": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Machine not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a machine",
+        "tags": [
+          "Machines"
+        ],
+        "description": "Remove a machine from the list.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The machine ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Machine deleted successfully."
+          },
+          "404": {
+            "description": "Machine not found."
+          }
+        }
+      }
+    },
+    "/microstop-aggregation/machine": {
+      "get": {
+        "summary": "Get aggregated microstop data, optionally filtered by machine ID and date range",
+        "tags": [
+          "Microstop Aggregation"
+        ],
+        "description": "Retrieves an aggregation of microstop data, optionally filtered by a specific machine ID and date range.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "description": "The unique identifier of the machine to filter the microstops by.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "description": "Start date for filtering microstops, in ISO 8601 format.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "description": "End date for filtering microstops, in ISO 8601 format.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved aggregated microstop data."
+          },
+          "404": {
+            "description": "No data found for the given filters."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/microstop-aggregation/process-order": {
+      "get": {
+        "summary": "Get aggregated microstops by process order",
+        "description": "Retrieve microstops aggregated by reason code for a given process order number, or filter by start and end date.",
+        "tags": [
+          "Microstop Aggregation"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "processOrderNumber",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The process order number to filter by."
+          },
+          {
+            "in": "query",
+            "name": "startDate",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Start date to filter microstops (format: YYYY-MM-DDTHH:mm:ssZ)."
+          },
+          {
+            "in": "query",
+            "name": "endDate",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "End date to filter microstops (format: YYYY-MM-DDTHH:mm:ssZ)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of aggregated microstops.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Microstop not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/microstops": {
+      "get": {
+        "summary": "Get all microstops",
+        "tags": [
+          "Microstops"
+        ],
+        "description": "Retrieve a list of all microstops.",
+        "responses": {
+          "200": {
+            "description": "A list of microstops.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new microstop",
+        "tags": [
+          "Microstops"
+        ],
+        "description": "Create a new microstop.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ID": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "Start": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "End": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Microstop added successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "microstop": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/microstops/{id}": {
+      "get": {
+        "summary": "Get a specific microstop",
+        "tags": [
+          "Microstops"
+        ],
+        "description": "Retrieve a single microstop by ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The microstop ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A microstop object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Microstop not found."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update an existing microstop",
+        "tags": [
+          "Microstops"
+        ],
+        "description": "Update the details of an existing microstop.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The microstop ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Microstop updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "microstop": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Microstop not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a microstop",
+        "tags": [
+          "Microstops"
+        ],
+        "description": "Remove a microstop from the list.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The microstop ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Microstop deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Microstop not found."
+          }
+        }
+      }
+    },
+    "/oeeconfig": {
+      "get": {
+        "summary": "Get the entire OEE configuration",
+        "tags": [
+          "OEE Configuration"
+        ],
+        "description": "Retrieve the entire OEE configuration as a JSON object.",
+        "responses": {
+          "200": {
+            "description": "The entire OEE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new OEE configuration",
+        "tags": [
+          "OEE Configuration"
+        ],
+        "description": "Add a new key-value pair to the OEE configuration.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "New OEE configuration added successfully."
+          }
+        }
+      }
+    },
+    "/oeeconfig/{key}": {
+      "get": {
+        "summary": "Get a specific OEE configuration",
+        "tags": [
+          "OEE Configuration"
+        ],
+        "description": "Retrieve the value of a specific OEE configuration key.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The OEE configuration key to retrieve."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The value of the specified OEE configuration key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Key not found."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update an existing OEE configuration",
+        "tags": [
+          "OEE Configuration"
+        ],
+        "description": "Update the value of a specific OEE configuration key.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The OEE configuration key to update."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OEE configuration updated successfully."
+          },
+          "404": {
+            "description": "Key not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a specific OEE configuration",
+        "tags": [
+          "OEE Configuration"
+        ],
+        "description": "Remove a key-value pair from the OEE configuration.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The OEE configuration key to delete."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Key deleted successfully."
+          },
+          "404": {
+            "description": "Key not found."
+          }
+        }
+      }
+    },
+    "/write-oee-metrics": {
+      "post": {
+        "summary": "Writes OEE (Overall Equipment Effectiveness) metrics to InfluxDB.",
+        "description": "This endpoint accepts OEE metric data and writes it to InfluxDB using the OEE Metrics Service.",
+        "tags": [
+          "OEE Metrics"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "processData",
+                  "oee",
+                  "availability",
+                  "performance",
+                  "quality"
+                ],
+                "properties": {
+                  "processData": {
+                    "type": "object",
+                    "properties": {
+                      "plant": {
+                        "type": "string",
+                        "description": "Name of the plant."
+                      },
+                      "area": {
+                        "type": "string",
+                        "description": "Area within the plant."
+                      },
+                      "machineId": {
+                        "type": "string",
+                        "description": "Identifier for the machine."
+                      },
+                      "ProcessOrderNumber": {
+                        "type": "string",
+                        "description": "Process order number."
+                      },
+                      "MaterialNumber": {
+                        "type": "string",
+                        "description": "Material number."
+                      },
+                      "MaterialDescription": {
+                        "type": "string",
+                        "description": "Description of the material."
+                      },
+                      "plannedProductionQuantity": {
+                        "type": "number",
+                        "description": "Planned production quantity."
+                      },
+                      "plannedDowntime": {
+                        "type": "number",
+                        "description": "Planned downtime in minutes."
+                      },
+                      "unplannedDowntime": {
+                        "type": "number",
+                        "description": "Unplanned downtime in minutes."
+                      },
+                      "microstops": {
+                        "type": "number",
+                        "description": "Number of microstops."
+                      }
+                    }
+                  },
+                  "oee": {
+                    "type": "number",
+                    "description": "Overall Equipment Effectiveness percentage."
+                  },
+                  "availability": {
+                    "type": "number",
+                    "description": "Availability component of OEE."
+                  },
+                  "performance": {
+                    "type": "number",
+                    "description": "Performance component of OEE."
+                  },
+                  "quality": {
+                    "type": "number",
+                    "description": "Quality component of OEE."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully written the OEE metrics to InfluxDB."
+          },
+          "500": {
+            "description": "Failed to write metrics due to an internal server error."
+          }
+        }
+      }
+    },
+    "/oee/{machineId}": {
+      "get": {
+        "tags": [
+          "Realtime OEE by Line"
+        ],
+        "summary": "Get current OEE metrics for a machine",
+        "description": "Retrieve the current OEE metrics from the buffer for the specified machine.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "machineId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The ID of the machine."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A JSON object containing the OEE metrics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "oee": {
+                      "type": "number",
+                      "description": "The calculated OEE value"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Machine OEE data not found."
+          }
+        }
+      }
+    },
+    "/planneddowntime": {
+      "get": {
+        "summary": "Get all planned downtimes",
+        "tags": [
+          "Planned Downtime"
+        ],
+        "description": "Retrieve a list of all planned downtimes.",
+        "responses": {
+          "200": {
+            "description": "A list of planned downtimes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new planned downtime",
+        "tags": [
+          "Planned Downtime"
+        ],
+        "description": "Create a new planned downtime.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ID": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Planned downtime added successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planneddowntime/processorder/{processOrderNumber}": {
+      "get": {
+        "summary": "Get planned downtime by Process Order Number",
+        "tags": [
+          "Planned Downtime"
+        ],
+        "description": "Retrieve planned downtimes for a specific process order.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processOrderNumber",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The process order number to filter by."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of planned downtimes for the specified process order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No planned downtime found for the specified process order number."
+          }
+        }
+      }
+    },
+    "/planneddowntime/machine/{machineId}": {
+      "get": {
+        "summary": "Get planned downtime by Machine ID",
+        "tags": [
+          "Planned Downtime"
+        ],
+        "description": "Retrieve planned downtimes for a specific machine.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "machineId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The machine ID to filter by."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of planned downtimes for the specified machine ID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No planned downtime found for the specified machine ID."
+          }
+        }
+      }
+    },
+    "/planneddowntime/{id}": {
+      "get": {
+        "summary": "Get a specific planned downtime",
+        "tags": [
+          "Planned Downtime"
+        ],
+        "description": "Retrieve a single planned downtime by ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The planned downtime ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A specific planned downtime object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Planned downtime not found."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update an existing planned downtime",
+        "tags": [
+          "Planned Downtime"
+        ],
+        "description": "Update the details of an existing planned downtime.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The planned downtime ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Planned downtime updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Planned downtime not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a planned downtime",
+        "tags": [
+          "Planned Downtime"
+        ],
+        "description": "Remove a planned downtime from the list.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The planned downtime ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Planned downtime deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Planned downtime not found."
+          }
+        }
+      }
+    },
+    "/prepareOEE/oee/{machineId}": {
+      "get": {
+        "summary": "Load data and prepare OEE calculations",
+        "tags": [
+          "OEE Preparation"
+        ],
+        "description": "Retrieves OEE data for a specific machine by its ID and prepares the calculations.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "machineId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The ID of the machine to retrieve OEE data for."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved and prepared OEE data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An error occurred while processing the OEE data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processorders": {
+      "get": {
+        "summary": "Get all process orders",
+        "tags": [
+          "Process Orders"
+        ],
+        "description": "Retrieve a list of all process orders.",
+        "responses": {
+          "200": {
+            "description": "A list of process orders.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new process order",
+        "tags": [
+          "Process Orders"
+        ],
+        "description": "Create a new process order.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "order_id": {
+                    "type": "integer"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Process order added successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processorders/rel": {
+      "get": {
+        "summary": "Get all process orders with status REL for a specific machine",
+        "tags": [
+          "Process Orders"
+        ],
+        "description": "Retrieve a list of all process orders with status REL for a specific machine.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "machineId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The machine ID to filter process orders."
+          },
+          {
+            "in": "query",
+            "name": "mark",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "If true, mark the filtered orders with an 'X'."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of process orders with status REL for the specified machine.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processorders/{id}": {
+      "put": {
+        "summary": "Update an existing process order",
+        "tags": [
+          "Process Orders"
+        ],
+        "description": "Update the details of an existing process order.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The process order ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Process order updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Process order not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a process order",
+        "tags": [
+          "Process Orders"
+        ],
+        "description": "Remove a process order from the list.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The process order ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Process order deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Process order not found."
+          }
+        }
+      }
+    },
+    "/ratings": {
+      "get": {
+        "summary": "Get all ratings",
+        "tags": [
+          "Ratings"
+        ],
+        "description": "Retrieve a list of all ratings.",
+        "responses": {
+          "200": {
+            "description": "A list of ratings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new rating",
+        "tags": [
+          "Ratings"
+        ],
+        "description": "Create a new rating.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rating created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ratings/{id}": {
+      "get": {
+        "summary": "Get a specific rating by ID",
+        "tags": [
+          "Ratings"
+        ],
+        "description": "Retrieve a single rating by ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The rating ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A rating object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rating not found."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update an existing rating",
+        "tags": [
+          "Ratings"
+        ],
+        "description": "Update the details of an existing rating.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The rating ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rating updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rating not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a rating",
+        "tags": [
+          "Ratings"
+        ],
+        "description": "Remove a rating from the list.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The rating ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rating deleted successfully."
+          },
+          "404": {
+            "description": "Rating not found."
+          }
+        }
+      }
+    },
+    "/settings/env": {
+      "get": {
+        "summary": "Get the entire environment configuration",
+        "tags": [
+          "Environment Configuration"
+        ],
+        "description": "Retrieve all the settings from the `.env` file.",
+        "responses": {
+          "200": {
+            "description": "A list of all environment settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update the entire environment configuration",
+        "tags": [
+          "Environment Configuration"
+        ],
+        "description": "Update all settings in the `.env` file.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "The updated configuration values."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Environment configuration updated successfully."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new environment setting",
+        "tags": [
+          "Environment Configuration"
+        ],
+        "description": "Add a new key-value pair to the `.env` file.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "New configuration added successfully."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/settings/env/{key}": {
+      "get": {
+        "summary": "Get a specific environment setting",
+        "tags": [
+          "Environment Configuration"
+        ],
+        "description": "Retrieve the value of a specific key from the `.env` file.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The environment key to retrieve."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The value of the specified environment key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Key not found."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a specific environment setting",
+        "tags": [
+          "Environment Configuration"
+        ],
+        "description": "Update the value of a specific key in the `.env` file.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The environment key to update."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Key updated successfully."
+          },
+          "404": {
+            "description": "Key not found."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a specific environment setting",
+        "tags": [
+          "Environment Configuration"
+        ],
+        "description": "Remove a key-value pair from the `.env` file.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The environment key to delete."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Key deleted successfully."
+          },
+          "404": {
+            "description": "Key not found."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/shiftmodels": {
+      "get": {
+        "summary": "Get all shift models",
+        "tags": [
+          "Shift Models"
+        ],
+        "description": "Retrieve a list of all shift models.",
+        "responses": {
+          "200": {
+            "description": "A list of shift models.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new shift model",
+        "tags": [
+          "Shift Models"
+        ],
+        "description": "Create a new shift model.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Shift model added successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "shiftModel": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shiftmodels/{id}": {
+      "get": {
+        "summary": "Get a specific shift model",
+        "tags": [
+          "Shift Models"
+        ],
+        "description": "Retrieve a single shift model by ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The shift model ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A specific shift model object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Shift model not found."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update an existing shift model",
+        "tags": [
+          "Shift Models"
+        ],
+        "description": "Update the details of an existing shift model.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The shift model ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Shift model updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "shiftModel": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Shift model not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a shift model",
+        "tags": [
+          "Shift Models"
+        ],
+        "description": "Remove a shift model from the list.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The shift model ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shift model deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Shift model not found."
+          }
+        }
+      }
+    },
+    "/shiftmodels/machine/{machine_id}": {
+      "get": {
+        "summary": "Get shift models by machine ID",
+        "tags": [
+          "Shift Models"
+        ],
+        "description": "Retrieve shift models associated with a specific machine ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "machine_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The machine ID to filter shift models by."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of shift models associated with the machine ID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No shift models found for the given machine ID."
+          }
+        }
+      }
+    },
+    "/structure": {
+      "get": {
+        "summary": "Fetch the structure configuration",
+        "tags": [
+          "Structure"
+        ],
+        "description": "Reads the configuration from the structure.json file and sends it as a response.",
+        "responses": {
+          "200": {
+            "description": "The structure configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Update the structure configuration",
+        "tags": [
+          "Structure"
+        ],
+        "description": "Writes the new configuration to the structure.json file.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Structure configuration saved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tact": {
+      "get": {
+        "summary": "Get all tact entries",
+        "tags": [
+          "Tact"
+        ],
+        "description": "Retrieve a list of all tact entries.",
+        "responses": {
+          "200": {
+            "description": "A list of tact entries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new tact entry",
+        "tags": [
+          "Tact"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "machine": {
+                    "type": "string"
+                  },
+                  "material": {
+                    "type": "string"
+                  },
+                  "sollMax": {
+                    "type": "number"
+                  },
+                  "sollMin": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tact entry created successfully."
+          }
+        }
+      }
+    },
+    "/tact/{id}": {
+      "get": {
+        "summary": "Get a specific tact entry by ID",
+        "tags": [
+          "Tact"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            },
+            "description": "The tact ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A tact entry object."
+          },
+          "404": {
+            "description": "Tact entry not found."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update an existing tact entry",
+        "tags": [
+          "Tact"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "machine": {
+                    "type": "string"
+                  },
+                  "material": {
+                    "type": "string"
+                  },
+                  "sollMax": {
+                    "type": "number"
+                  },
+                  "sollMin": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tact entry updated successfully."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a tact entry",
+        "tags": [
+          "Tact"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tact entry deleted successfully."
+          }
+        }
+      }
+    },
+    "/topics": {
+      "get": {
+        "summary": "Get dynamic topics",
+        "tags": [
+          "Topics"
+        ],
+        "description": "Generate topics based on the Plant, Area, or Line.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "plant",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by Plant"
+          },
+          {
+            "in": "query",
+            "name": "area",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by Area"
+          },
+          {
+            "in": "query",
+            "name": "line",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by Line"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of generated topics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/unplanneddowntime": {
+      "get": {
+        "summary": "Get all unplanned downtimes",
+        "tags": [
+          "Unplanned Downtime"
+        ],
+        "description": "Retrieve a list of all unplanned downtimes.",
+        "responses": {
+          "200": {
+            "description": "A list of unplanned downtimes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new unplanned downtime",
+        "tags": [
+          "Unplanned Downtime"
+        ],
+        "description": "Create a new unplanned downtime.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ID": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Unplanned downtime added successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/unplanneddowntime/processorder/{processOrderNumber}": {
+      "get": {
+        "summary": "Get unplanned downtime by Process Order Number",
+        "tags": [
+          "Unplanned Downtime"
+        ],
+        "description": "Retrieve unplanned downtimes for a specific process order.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processOrderNumber",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The process order number to filter by."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of unplanned downtimes for the specified process order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No unplanned downtime found for the specified process order number."
+          }
+        }
+      }
+    },
+    "/unplanneddowntime/machine/{machineId}": {
+      "get": {
+        "summary": "Get unplanned downtime by Machine ID",
+        "tags": [
+          "Unplanned Downtime"
+        ],
+        "description": "Retrieve unplanned downtimes for a specific machine.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "machineId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The machine ID to filter by."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of unplanned downtimes for the specified machine ID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No unplanned downtime found for the specified machine ID."
+          }
+        }
+      }
+    },
+    "/unplanneddowntime/{id}": {
+      "get": {
+        "summary": "Get a specific unplanned downtime",
+        "tags": [
+          "Unplanned Downtime"
+        ],
+        "description": "Retrieve a single unplanned downtime by ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The unplanned downtime ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A specific unplanned downtime object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unplanned downtime not found."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update an existing unplanned downtime",
+        "tags": [
+          "Unplanned Downtime"
+        ],
+        "description": "Update the details of an existing unplanned downtime.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The unplanned downtime ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unplanned downtime updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unplanned downtime not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an unplanned downtime",
+        "tags": [
+          "Unplanned Downtime"
+        ],
+        "description": "Remove an unplanned downtime from the list.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The unplanned downtime ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unplanned downtime deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unplanned downtime not found."
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "summary": "Get all users",
+        "tags": [
+          "Users"
+        ],
+        "description": "Retrieve a list of all users.",
+        "responses": {
+          "200": {
+            "description": "A list of users.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new user",
+        "tags": [
+          "Users"
+        ],
+        "description": "Create a new user and save it to the list.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "summary": "Get a specific user",
+        "tags": [
+          "Users"
+        ],
+        "description": "Retrieve a single user by ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The user ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A user object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found."
+          }
+        }
+      },
+      "put": {
+        "summary": "Update an existing user",
+        "tags": [
+          "Users"
+        ],
+        "description": "Update the details of an existing user.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The user ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a user",
+        "tags": [
+          "Users"
+        ],
+        "description": "Delete a specific user by ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The user ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully."
+          },
+          "404": {
+            "description": "User not found."
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "summary": "User login",
+        "tags": [
+          "Users"
+        ],
+        "description": "Authenticate a user and return a JWT token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully logged in and returned JWT token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid username or password."
+          }
+        }
+      }
+    },
+    "/users/email/{email}": {
+      "get": {
+        "summary": "Get a specific user by email",
+        "tags": [
+          "Users"
+        ],
+        "description": "Retrieve a single user by email.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "email",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The user email."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A user object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found."
+          }
+        }
+      }
+    }
+  },
+  "components": {},
+  "tags": [
+    {
+      "name": "Machines",
+      "description": "API for managing machines"
+    },
+    {
+      "name": "Microstop Aggregation",
+      "description": "API for aggregating microstops data"
+    },
+    {
+      "name": "Microstops",
+      "description": "API for managing microstops"
+    },
+    {
+      "name": "OEE Configuration",
+      "description": "API for managing OEE configurations"
+    },
+    {
+      "name": "Realtime OEE by Line",
+      "description": "API for reading OEE from Line"
+    },
+    {
+      "name": "Process Orders",
+      "description": "API for managing process orders"
+    },
+    {
+      "name": "Ratings",
+      "description": "API for managing ratings"
+    },
+    {
+      "name": "Environment Configuration",
+      "description": "API for managing environment configuration settings"
+    },
+    {
+      "name": "Shift Models",
+      "description": "API for managing shift models"
+    },
+    {
+      "name": "Structure",
+      "description": "API for managing the structure configuration"
+    },
+    {
+      "name": "Tact",
+      "description": "API for managing Tact data. It defined how fast the machine is allowed to run for that specific material"
+    },
+    {
+      "name": "Topics",
+      "description": "API for generating dynamic topics based on machine and OEE configuration"
+    },
+    {
+      "name": "Unplanned Downtime",
+      "description": "API for managing unplanned downtimes"
+    },
+    {
+      "name": "Users",
+      "description": "API for managing users"
+    }
+  ]
+}
