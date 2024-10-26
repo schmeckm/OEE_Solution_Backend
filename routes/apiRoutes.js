@@ -1,7 +1,6 @@
-require('dotenv').config(); // Lade die Umgebungsvariablen
+require('dotenv').config(); // Load environment variables
 
 const express = require("express");
-const jwt = require('jsonwebtoken');
 
 // Import all your routers as before
 const machinesRouter = require("./machines");
@@ -25,34 +24,26 @@ const prepareOEERouter = require("./prepareOEE");
 const oeeDataRouter = require("./oeeRoutes");
 const tactRouter = require('./tact');
 
-// Middleware for token verification
-const verifyToken = (req, res, next) => {
-    // Hole die vertrauenswürdige IP-Adresse aus der Umgebungskonfiguration
+// Middleware for API key verification
+const verifyApiKey = (req, res, next) => {
+    // Get the trusted internal IP address from the environment configuration
     const trustedIp = process.env.TRUSTED_INTERNAL_IP;
 
-    // Prüfe die IP-Adresse der eingehenden Anfrage
+    // Check the IP address of the incoming request
     if (req.ip === trustedIp || req.hostname === 'localhost') {
-        return next(); // Überspringe die Authentifizierung für die vertrauenswürdige interne IP
+        return next(); // Skip authentication for the trusted internal IP
     }
 
-    const authHeader = req.headers['authorization'];
-    if (!authHeader) {
-        return res.status(401).json({ error: 'No token provided' });
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) {
+        return res.status(401).json({ error: 'No API key provided' });
     }
 
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-        return res.status(401).json({ error: 'Malformed token' });
+    if (apiKey !== process.env.API_KEY) {
+        return res.status(403).json({ error: 'Invalid API key' });
     }
 
-    jwt.verify(token, process.env.AUTH0_CLIENT_SECRET, (err, decoded) => {
-        if (err) {
-            return res.status(403).json({ error: 'Failed to authenticate token' });
-        }
-
-        req.user = decoded; // Benutzerinformationen zur Weiterverwendung speichern
-        next();
-    });
+    next(); // API key is valid, proceed to the next middleware or route handler
 };
 
 /**
@@ -62,30 +53,30 @@ const verifyToken = (req, res, next) => {
  */
 function registerApiRoutes(app) {
     // OEE API Endpoints for OEE Data
-    app.use("/api/v1/machines", verifyToken, machinesRouter);
-    app.use("/api/v1/planneddowntime", verifyToken, plannedDowntimeRouter);
-    app.use("/api/v1/processorders", verifyToken, processOrdersRouter);
-    app.use("/api/v1/shiftmodels", verifyToken, shiftModelRouter);
-    app.use("/api/v1/unplanneddowntime", verifyToken, unplannedDowntimeRouter);
-    app.use("/api/v1/oeeconfig", verifyToken, oeeConfigRouter);
-    app.use("/api/v1/microstops", verifyToken, microStopsRouter);
+    app.use("/api/v1/machines", verifyApiKey, machinesRouter);
+    app.use("/api/v1/planneddowntime", verifyApiKey, plannedDowntimeRouter);
+    app.use("/api/v1/processorders", verifyApiKey, processOrdersRouter);
+    app.use("/api/v1/shiftmodels", verifyApiKey, shiftModelRouter);
+    app.use("/api/v1/unplanneddowntime", verifyApiKey, unplannedDowntimeRouter);
+    app.use("/api/v1/oeeconfig", verifyApiKey, oeeConfigRouter);
+    app.use("/api/v1/microstops", verifyApiKey, microStopsRouter);
 
     // Register microstop aggregation routes
-    app.use("/api/v1/microstop-aggregation/machine", verifyToken, microstopMachineAggregationRouter);
-    app.use("/api/v1/microstop-aggregation/process-order", verifyToken, microstopProcessOrderAggregationRouter);
+    app.use("/api/v1/microstop-aggregation/machine", verifyApiKey, microstopMachineAggregationRouter);
+    app.use("/api/v1/microstop-aggregation/process-order", verifyApiKey, microstopProcessOrderAggregationRouter);
 
     // Additional API Endpoints for Customizing the OEE System
-    app.use("/api/v1/structure", verifyToken, structureRouter);
-    app.use("/api/v1/oee-logs", verifyToken, oeeLogsRouter);
-    app.use("/api/v1/calculateOEE", verifyToken, calculateOEERouter);
-    app.use("/api/v1/topics", verifyToken, topicsRouter);
-    app.use("/api/v1/users", verifyToken, userRouter);
-    app.use("/api/v1/ratings", verifyToken, ratingsRouter);
-    app.use("/api/v1", verifyToken, oeeMetricsRouter);
-    app.use("/api/v1/settings", verifyToken, settingRouter);
-    app.use("/api/v1/prepareOEE", verifyToken, prepareOEERouter);
-    app.use("/api/v1", verifyToken, oeeDataRouter);
-    app.use('/api/v1/tact', verifyToken, tactRouter);
+    app.use("/api/v1/structure", verifyApiKey, structureRouter);
+    app.use("/api/v1/oee-logs", verifyApiKey, oeeLogsRouter);
+    app.use("/api/v1/calculateOEE", verifyApiKey, calculateOEERouter);
+    app.use("/api/v1/topics", verifyApiKey, topicsRouter);
+    app.use("/api/v1/users", verifyApiKey, userRouter);
+    app.use("/api/v1/ratings", verifyApiKey, ratingsRouter);
+    app.use("/api/v1", verifyApiKey, oeeMetricsRouter);
+    app.use("/api/v1/settings", verifyApiKey, settingRouter);
+    app.use("/api/v1/prepareOEE", verifyApiKey, prepareOEERouter);
+    app.use("/api/v1", verifyApiKey, oeeDataRouter);
+    app.use('/api/v1/tact', verifyApiKey, tactRouter);
 }
 
 module.exports = registerApiRoutes;
