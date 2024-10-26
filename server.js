@@ -18,12 +18,16 @@ const gracefulShutdown = require("./src/shutdown");
 const { initializeInfluxDB } = require("./services/influxDBService");
 const registerApiRoutes = require("./routes/apiRoutes");
 const { setWebSocketServer } = require("./websocket/webSocketUtils"); // Importing setWebSocketServer from webSocketUtils
-
 const app = express();
+const cors = require('cors');
 const httpsPort = process.env.HTTPS_PORT || 443;
-const httpPort = process.env.HTTP_PORT || 80;
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // WARNING: Only for development purposes!
+
+
+// Load CORS_ALLOWED_ORIGINS aus der .env Datei
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS || '*';
+
 
 // Security Middleware Setup
 app.use(helmet());
@@ -38,7 +42,14 @@ app.use(
         }
     })
 );
+
 app.use(helmet.referrerPolicy({ policy: 'no-referrer' }));
+
+// Enable CORS with origins from .env
+app.use(cors({
+    origin: allowedOrigins === '*' ? true : allowedOrigins.split(',')
+}));
+
 
 // Middleware Setup for parsing JSON and URL-encoded data
 app.use(express.json({ limit: "10kb" }));
