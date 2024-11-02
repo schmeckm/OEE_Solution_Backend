@@ -3,9 +3,10 @@ const { defaultLogger, errorLogger } = require("../utils/logger");
 const { influxdb } = require("../config/config");
 
 let writeApi;
+let queryApi; // New variable to store the query API
 
 /**
- * Initializes the InfluxDB client and sets up the write API.
+ * Initializes the InfluxDB client and sets up the write and query APIs.
  * Ensures that all necessary configurations are provided.
  */
 function initializeInfluxDB(retryCount = 0) {
@@ -19,17 +20,21 @@ function initializeInfluxDB(retryCount = 0) {
 
         // Initialize the InfluxDB client
         const influxDB = new InfluxDB({ url: influxdb.url, token: influxdb.token });
+
+        // Initialize the write API
         writeApi = influxDB.getWriteApi(influxdb.org, influxdb.bucket);
-        defaultLogger.info("InfluxDB client initialized sucessfully.");
+
+        // Initialize the query API
+        queryApi = influxDB.getQueryApi(influxdb.org);
+
+        defaultLogger.info("InfluxDB client initialized successfully.");
     } catch (error) {
         errorLogger.error(`InfluxDB initialization error: ${error.message}`);
 
         // Retry initialization up to maxRetries
         if (retryCount < maxRetries) {
             errorLogger.warn(
-                `Retrying InfluxDB initialization in ${retryDelay} ms (Attempt: ${
-          retryCount + 1
-        })...`
+                `Retrying InfluxDB initialization in ${retryDelay} ms (Attempt: ${retryCount + 1})...`
             );
             setTimeout(() => initializeInfluxDB(retryCount + 1), retryDelay);
         } else {
@@ -51,6 +56,17 @@ function getWriteApi() {
 }
 
 /**
+ * Retrieves the InfluxDB query API.
+ * Throws an error if the API is not initialized.
+ */
+function getQueryApi() {
+    if (!queryApi) {
+        throw new Error("InfluxDB query API is not initialized.");
+    }
+    return queryApi;
+}
+
+/**
  * Flush any remaining data to InfluxDB on application shutdown.
  */
 function shutdownInfluxDB() {
@@ -65,4 +81,4 @@ function shutdownInfluxDB() {
     }
 }
 
-module.exports = { initializeInfluxDB, getWriteApi, shutdownInfluxDB };
+module.exports = { initializeInfluxDB, getWriteApi, getQueryApi, shutdownInfluxDB };

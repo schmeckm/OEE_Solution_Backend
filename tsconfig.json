@@ -1,14 +1,13 @@
 {
-    "compilerOptions": {
+  "compilerOptions": {
       "esModuleInterop": true,
       "allowJs": true,
       "checkJs": false,
-      "target": "ES6",
+      "target": "ES2020",  // Change from ES6 to ES2020
       "module": "commonjs",
       "outDir": "./dist",
       "strict": true
-    },
-    "include": ["src/**/*.js", "routes/**/*.js", "utils/classification.js", "utils/cacheHelper.js"],
-    "exclude": ["node_modules"]
-  }
-  
+  },
+  "include": ["src/**/*.js", "routes/**/*.js", "utils/classification.js", "utils/cacheHelper.js"],
+  "exclude": ["node_modules"]
+}

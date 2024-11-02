@@ -72,10 +72,10 @@ function registerApiRoutes(app) {
     app.use("/api/v1/topics", verifyApiKey, topicsRouter);
     app.use("/api/v1/users", verifyApiKey, userRouter);
     app.use("/api/v1/ratings", verifyApiKey, ratingsRouter);
-    app.use("/api/v1", verifyApiKey, oeeMetricsRouter);
+    app.use("/api/v1/oee-metrics", verifyApiKey, oeeMetricsRouter); // Updated path for oeeMetricsRouter
     app.use("/api/v1/settings", verifyApiKey, settingRouter);
     app.use("/api/v1/prepareOEE", verifyApiKey, prepareOEERouter);
-    app.use("/api/v1", verifyApiKey, oeeDataRouter);
+    app.use("/api/v1/oee-data", verifyApiKey, oeeDataRouter); // Updated path for oeeDataRouter
     app.use('/api/v1/tact', verifyApiKey, tactRouter);
 }
 

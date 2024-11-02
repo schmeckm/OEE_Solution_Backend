@@ -23,9 +23,9 @@
     "oeeAsPercent": true,
     "influxdb": {
         "url": "http://136.244.90.128:8086",
-        "token": "b3RRWjHvQ9fQyBYgrqLHlYdPdu4SEZz8_CXApmIrzRkuL7ElNQyB9ZF7Dfi9Ak6ROqz54nc8nUhU3WJ9rQzljw==",
+        "token": "D-5d-bxYWX-hr6-NXnlexL1dr6jsy2-ruvX0Tg54YmDJ-tvVJbvhA7pZmpoR3jGsbmg3APIUnpzPHjmWtLIOFw==",
         "org": "drugproduct_center",
-        "bucket": "data"
+        "bucket": "OEE_Data"
     },
     "topicFormat": "spBv1.0/group_id/message_type/edge_node_id",
     "plannedDowntimeApiUrl": null,

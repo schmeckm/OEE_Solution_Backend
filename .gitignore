@@ -11,3 +11,10 @@ node_modules/
 # Temporäre Dateien
 *.tmp
 *.swp
+
+
+# Certification data
+*.cert
+*.key
+*.crt
+*.key
