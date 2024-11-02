@@ -86,9 +86,10 @@ const mqttClient = initializeMqttClient();
 
 // HTTPS Server Initialization
 const sslOptions = {
-    key: fs.readFileSync(process.env.SSL_KEY_PATH || path.join(__dirname, './certs/localhost.key')),
-    cert: fs.readFileSync(process.env.SSL_CERT_PATH || path.join(__dirname, './certs/localhost.crt'))
+    key: fs.readFileSync(process.env.SSL_KEY_PATH || path.join(__dirname, './certs/iotshowroom.key')),
+    cert: fs.readFileSync(process.env.SSL_CERT_PATH || path.join(__dirname, './certs/fullchain.cert'))
 };
+
 
 const httpsServer = https.createServer(sslOptions, app).listen(httpsPort, () => {
     defaultLogger.info(`HTTPS Server is running on port ${httpsPort}`);
