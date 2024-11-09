@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <script>
+        let socket;
+
+        function connect() {
+            // Verbindung zum WebSocket-Server aufbauen
+            socket = new WebSocket('wss://localhost:443'); // Stelle sicher, dass du wss verwendest
+
+            // Event-Handler für die Verbindung
+            socket.onopen = function() {
+                console.log('WebSocket-Verbindung hergestellt.');
+            };
+
+            // Event-Handler für empfangene Nachrichten
+            socket.onmessage = function(event) {
+                console.log('Nachricht vom Server:', event.data);
+            };
+
+            // Event-Handler für Fehler
+            socket.onerror = function(error) {
+                console.error('WebSocket Fehler:', error);
+            };
+
+            // Event-Handler für das Schließen der Verbindung
+            socket.onclose = function() {
+                console.log('WebSocket-Verbindung geschlossen.');
+            };
+        }
+
+        function sendMessage() {
+            const message = document.getElementById('messageInput').value;
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(message);
+                console.log('Nachricht gesendet:', message);
+            } else {
+                console.error('WebSocket ist nicht geöffnet.');
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <h1>WebSocket Test</h1>
+    <button onclick="connect()">Verbinden</button>
+    <input type="text" id="messageInput" placeholder="Nachricht eingeben">
+    <button onclick="sendMessage()">Nachricht senden</button>
+    <script>
+        // Optional: Verbinde automatisch beim Laden der Seite
+        // connect();
+    </script>
+</body>
+
+</html>

@@ -6,7 +6,6 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const https = require('https');
 const fs = require('fs');
-const http = require('http');
 const { Server } = require("ws"); // Correctly importing WebSocket Server
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
@@ -98,8 +97,15 @@ const httpsServer = https.createServer(sslOptions, app).listen(httpsPort, () => 
 
 // WebSocket Server Setup
 const wss = new Server({ server: httpsServer });
-setWebSocketServer(wss); // WebSocket-Instanz im Singleton setzen
+
+// Set WebSocket-Instanz im Singleton
+setWebSocketServer(wss);
+
+// Handle WebSocket-Verbindungen
 handleWebSocketConnections(wss);
+
+// Konsolenausgabe, um anzuzeigen, dass der WebSocket-Server läuft
+defaultLogger.info("WebSocket server is running and waiting for connections.");
 
 // Graceful Shutdown Handling
 process.on("SIGTERM", () => gracefulShutdown(httpsServer, mqttClient, "SIGTERM"));

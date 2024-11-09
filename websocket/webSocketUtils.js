@@ -44,7 +44,6 @@ function setWebSocketServer(server) {
             }
 
             ws.on("close", () => {
-                console.log("Client disconnected");
                 oeeLogger.info("WebSocket client disconnected.");
                 clearInterval(interval); // Stop the ping interval when the client disconnects
             });

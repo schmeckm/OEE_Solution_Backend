@@ -40,10 +40,12 @@ function createMqttClient() {
     return mqtt.connect(mqttConfig.brokers.area.url, {
         username: mqttConfig.auth.username,
         password: mqttConfig.auth.password,
-        rejectUnauthorized: false // Erlaubt selbstsignierte Zertifikate
-            // key: mqttConfig.tls.key,
-            // cert: mqttConfig.tls.cert,
-            // ca: mqttConfig.tls.ca,
+        clientId: mqttConfig.clientId,
+        rejectUnauthorized: false // 
+
+        // key: mqttConfig.tls.key,
+        // cert: mqttConfig.tls.cert,
+        // ca: mqttConfig.tls.ca,
     });
 }
 
