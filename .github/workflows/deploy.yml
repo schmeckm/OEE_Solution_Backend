@@ -10,11 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Installiere Node.js mit einer bestimmten Version, z. B. 16.x
+      # Installiere Node.js Version 20.16.0
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16' # Hier die gewünschte Node.js Version angeben, z.B., 16, 18, etc.
+          node-version: '20.16.0'
           cache: 'yarn'
 
       # Klonen des Repositorys
