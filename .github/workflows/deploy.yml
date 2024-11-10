@@ -7,16 +7,31 @@ on:
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
+      # Installiere Node.js mit einer bestimmten Version, z. B. 16.x
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16' # Hier die gewünschte Node.js Version angeben, z.B., 16, 18, etc.
+          cache: 'yarn'
+
+      # Klonen des Repositorys
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Installieren der Abhängigkeiten
       - name: Install Dependencies
         run: |
           yarn install
 
-      - name: Start or Restart Application in Production
+      # Start oder Neustart der Anwendung mit PM2
+      - name: Start or Restart Application
         run: |
-          pm2 start ecosystem.config.js --env production || pm2 restart OEE_solution --env production
+          pm2 start server.js --name "OEE_solution" --update-env || pm2 restart OEE_solution --update-env
+
+      # Überprüfen der PM2-Logs für Fehler
+      - name: Check PM2 Logs
+        run: |
+          pm2 logs OEE_solution --lines 50
