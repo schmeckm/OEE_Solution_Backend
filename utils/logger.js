@@ -1,10 +1,9 @@
 const winston = require("winston");
 const DailyRotateFile = require("winston-daily-rotate-file");
 const path = require("path");
-const dotenv = require("dotenv");
+const fs = require("fs");
 
-// Load the .env file
-dotenv.config();
+// Hinweis: Keine Notwendigkeit, dotenv erneut zu laden, da die server.js dies bereits tut.
 
 // Define the log format
 const logFormat = winston.format.printf(({ level, message, timestamp, ...metadata }) => {
@@ -15,11 +14,17 @@ const logFormat = winston.format.printf(({ level, message, timestamp, ...metadat
     return logMessage;
 });
 
-// Load log levels and settings
+// Load log levels and settings from environment variables
 const logLevels = (process.env.LOG_LEVELS || "info").split(",").map(level => level.trim());
 const retentionDays = process.env.LOG_RETENTION_DAYS || 14;
 const logToConsole = process.env.LOG_TO_CONSOLE === "true";
 const logToFile = process.env.LOG_TO_FILE === "true";
+
+// Ensure the logs directory exists
+const logsDir = path.join(__dirname, "../logs");
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+}
 
 /**
  * Custom filter to only allow specified log levels.
@@ -49,7 +54,7 @@ const createTransport = (type, filename) => {
 
     if (type === "file" && logToFile) {
         return new DailyRotateFile({
-            filename: path.join(__dirname, `../logs/${filename}-%DATE%.log`),
+            filename: path.join(logsDir, `${filename}-%DATE%.log`),
             datePattern: "YYYY-MM-DD",
             maxSize: "20m",
             maxFiles: `${retentionDays}d`,
@@ -75,26 +80,32 @@ const createLogger = (logFilename = "app") => {
     const exceptionHandlers = [];
     const rejectionHandlers = [];
 
-    if (logToConsole) {
-        const consoleTransport = createTransport("console");
-        if (consoleTransport) {
-            transports.push(consoleTransport);
-        }
+    // Create console transport if enabled
+    const consoleTransport = createTransport("console");
+    if (consoleTransport) {
+        transports.push(consoleTransport);
     }
 
-    if (logToFile) {
-        const fileTransport = createTransport("file", logFilename);
-        if (fileTransport) {
-            transports.push(fileTransport);
-            exceptionHandlers.push(createTransport("file", "exceptions"));
-            rejectionHandlers.push(createTransport("file", "rejections"));
-        }
+    // Create file transport if enabled
+    const fileTransport = createTransport("file", logFilename);
+    if (fileTransport) {
+        transports.push(fileTransport);
+        exceptionHandlers.push(createTransport("file", "exceptions"));
+        rejectionHandlers.push(createTransport("file", "rejections"));
     }
 
-    // Check if there are any transports, and throw an error if none exist
+    // Fallback if no transports configured
     if (transports.length === 0) {
-        console.error("No transports configured for logging. At least one transport is required.");
-        throw new Error("Logging configuration error: No transports available.");
+        console.error("No transports configured for logging. Enabling Console transport as fallback.");
+        transports.push(new winston.transports.Console({
+            level: logLevels[0],
+            format: winston.format.combine(
+                customFilter(),
+                winston.format.colorize(),
+                winston.format.timestamp(),
+                logFormat
+            ),
+        }));
     }
 
     return winston.createLogger({

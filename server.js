@@ -1,13 +1,33 @@
-require('dotenv').config({
-    path: require('path').resolve(__dirname, process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development')
-});
+const dotenv = require('dotenv');
+const path = require('path');
+const fs = require('fs');
+
+// Load the appropriate .env file based on the environment
+const env = process.env.NODE_ENV;
+let envFilePath;
+
+if (env === 'production') {
+    envFilePath = path.resolve(__dirname, '.env.production');
+} else if (env === 'development') {
+    envFilePath = path.resolve(__dirname, '.env.development');
+} else if (env === 'deployment') {
+    envFilePath = path.resolve(__dirname, '.env.deployment');
+} else {
+    envFilePath = path.resolve(__dirname, '.env');
+}
+
+// Check if the specified .env file exists before loading
+if (fs.existsSync(envFilePath)) {
+    dotenv.config({ path: envFilePath });
+    console.log(`Loaded environment variables from ${envFilePath}`);
+} else {
+    console.warn(`Environment file ${envFilePath} not found. Make sure to create the appropriate .env file.`);
+}
 
 const express = require("express");
-const path = require("path");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const https = require('https');
-const fs = require('fs');
 const { Server } = require("ws");
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
@@ -81,14 +101,14 @@ const mqttClient = initializeMqttClient();
 // === HTTPS Server Setup ===
 let sslOptions;
 if (process.env.NODE_ENV === 'production') {
-    // Produktionsumgebung - Verwenden Sie ein gültiges Zertifikat
+    // Production environment - Use valid certificate
     sslOptions = {
         key: fs.readFileSync(process.env.SSL_KEY_PATH),
         cert: fs.readFileSync(process.env.SSL_CERT_PATH),
         ca: process.env.SSL_CA_PATH ? fs.readFileSync(process.env.SSL_CA_PATH) : undefined
     };
 } else {
-    // Entwicklungsumgebung - Selbstsignierte Zertifikate zulassen
+    // Development environment - Allow self-signed certificates
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     sslOptions = {
         key: fs.readFileSync(process.env.SSL_KEY_PATH),
