@@ -14,6 +14,9 @@ node_modules/
 *.tmp
 *.swp
 
+# Produktionszertifikate niemals tracken
+certs/*.key
+certs/*.cert
 
 # Certification data
 *.cert
