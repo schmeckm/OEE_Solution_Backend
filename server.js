@@ -42,21 +42,38 @@ app.use(cors({
 }));
 
 // === API Key Middleware for External Requests Only ===
+// === Enhanced API Key Middleware with Logging for Debugging ===
 app.use((req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     const clientIp = req.ip || req.connection.remoteAddress;
+    const requestHostname = req.hostname;
 
-    // Erlaubt Zugriff ohne API-Key für localhost oder interne IP
-    const isInternalRequest = ['::1', '127.0.0.1', 'localhost', process.env.INTERNAL_SERVER_IP].includes(clientIp);
+    // Define if request is considered internal
+    const isInternalRequest = ['::1', '127.0.0.1', 'localhost', process.env.INTERNAL_SERVER_IP].includes(clientIp) ||
+        requestHostname === 'localhost' ||
+        requestHostname === process.env.INTERNAL_SERVER_HOSTNAME;
 
-    if (process.env.NODE_ENV === 'production' && !isInternalRequest) {
-        if (apiKey !== process.env.API_KEY) {
-            return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
+    // Logging to help with debugging
+    console.log(`Request received from IP: ${clientIp}, Hostname: ${requestHostname}`);
+    console.log(`Internal Request Check: ${isInternalRequest ? 'Internal' : 'External'}`);
+    console.log(`Environment: ${process.env.NODE_ENV}`);
+
+    if (process.env.NODE_ENV === 'production') {
+        if (!isInternalRequest) {
+            console.log('External request detected. Checking API Key...');
+            if (apiKey !== process.env.API_KEY) {
+                console.error('Unauthorized: Invalid API Key provided.');
+                return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
+            }
+            console.log('API Key validated successfully for external request.');
+        } else {
+            console.log('Internal request - no API Key required.');
         }
     }
 
     next();
 });
+
 
 // === Security Middleware ===
 app.use(helmet());
