@@ -7,6 +7,8 @@ node_modules/
 
 # Enviroment-Dateien
 .env
+.env.development
+.env.production
 
 # Temporäre Dateien
 *.tmp
