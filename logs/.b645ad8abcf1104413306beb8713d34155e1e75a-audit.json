@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 1
+    },
+    "auditLog": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\.b645ad8abcf1104413306beb8713d34155e1e75a-audit.json",
+    "files": [
+        {
+            "date": 1731272340337,
+            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\exceptions-2024-11-10.log",
+            "hash": "1feb978f9f7d204090b08fa0b470af10225f409d12e2cf5f6a150c57555a4e15"
+        }
+    ],
+    "hashType": "sha256"
+}

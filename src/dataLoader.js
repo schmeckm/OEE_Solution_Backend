@@ -9,7 +9,7 @@ dotenv.config();
 
 const OEE_API_URL = process.env.OEE_API_URL;
 
-// Erstellen der benutzerdefinierten axios-Instanz
+// Erstellen der benutzerdefinierten axios-Instanz mit API-Key
 const apiClient = axios.create({
     baseURL: OEE_API_URL,
     headers: {
@@ -17,7 +17,7 @@ const apiClient = axios.create({
     }
 });
 
-// Caches für verschiedene Daten
+// Caches for various data
 let unplannedDowntimeCache = null;
 let plannedDowntimeCache = null;
 let processOrderDataCache = null;
@@ -29,7 +29,7 @@ let microstopsCache = null;
 let OEEDataCache = {};
 const shiftModelCache = {};
 
-// Funktion zum Laden der Maschinendaten über apiClient
+// Load machine data from the API, caching the result
 async function loadMachineData() {
     if (!machineDataCache) {
         try {
@@ -43,19 +43,17 @@ async function loadMachineData() {
     return machineDataCache;
 }
 
-// Funktion zum Laden der ungeplanten Ausfallzeiten
+// Load unplanned downtime data from the API, caching the result
 async function loadUnplannedDowntimeData() {
     if (!unplannedDowntimeCache) {
         try {
             const response = await apiClient.get(`/unplanneddowntime`);
             const data = response.data;
-
             unplannedDowntimeCache = data.map((downtime) => ({
                 ...downtime,
                 Start: moment(downtime.Start).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
                 End: moment(downtime.End).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
             }));
-
             oeeLogger.debug(`Unplanned downtime data loaded successfully.`);
         } catch (error) {
             errorLogger.error(`Failed to load unplanned downtime data: ${error.message}`);
@@ -65,19 +63,17 @@ async function loadUnplannedDowntimeData() {
     return unplannedDowntimeCache;
 }
 
-// Funktion zum Laden der geplanten Ausfallzeiten
+// Load planned downtime data from the API, caching the result
 async function loadPlannedDowntimeData() {
     if (!plannedDowntimeCache) {
         try {
             const response = await apiClient.get(`/planneddowntime`);
             const data = response.data;
-
             plannedDowntimeCache = data.map((downtime) => ({
                 ...downtime,
                 Start: moment(downtime.Start).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
                 End: moment(downtime.End).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
             }));
-
             oeeLogger.info(`Planned downtime data loaded successfully.`);
         } catch (error) {
             errorLogger.error(`Failed to load planned downtime data: ${error.message}`);
@@ -87,57 +83,44 @@ async function loadPlannedDowntimeData() {
     return plannedDowntimeCache;
 }
 
-// Funktion zum Laden der Prozessauftragsdaten
+// Load process order data from the API, caching the result
 async function loadProcessOrderData() {
     if (!processOrderDataCache) {
         try {
             const response = await apiClient.get(`/processorders`);
-
             if (!Array.isArray(response.data)) {
                 throw new Error("Process order data is not an array");
             }
-
-            let processOrderData = response.data;
-
-            processOrderData = processOrderData.map((order) => ({
+            let processOrderData = response.data.map((order) => ({
                 ...order,
                 Start: moment(order.Start).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
                 End: moment(order.End).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
             }));
-
             processOrderDataCache = processOrderData;
-
             oeeLogger.debug(`Process order data loaded successfully.`);
         } catch (error) {
             errorLogger.error(`Failed to load process order data: ${error.message}`);
             throw new Error("Could not load process order data");
         }
     }
-
-    if (!Array.isArray(processOrderDataCache)) {
-        throw new Error("processOrderDataCache is not an array after loading");
-    }
-
     return processOrderDataCache;
 }
 
-// Funktion zum Laden der Prozessaufträge für eine spezifische Maschine
+// Load process orders for a specific machine, caching the result
 async function loadProcessOrderDataByMachine(machineId) {
     if (processOrderByMachineCache[machineId]) {
         oeeLogger.debug(`Returning cached process orders for machine ID: ${machineId}`);
         return processOrderByMachineCache[machineId];
     }
-
     try {
-        const response = await apiClient.get(`/processorders/rel?machineId=${machineId}&mark=true`);
-        let processOrderData = response.data;
-
-        processOrderData = processOrderData.map((order) => ({
+        const response = await apiClient.get(`/processorders/rel`, {
+            params: { machineId, mark: true },
+        });
+        let processOrderData = response.data.map((order) => ({
             ...order,
             Start: moment(order.Start).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
             End: moment(order.End).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
         }));
-
         processOrderByMachineCache[machineId] = processOrderData;
         oeeLogger.info(`Process order data loaded successfully for machine ID: ${machineId}`);
         return processOrderData;
@@ -147,13 +130,56 @@ async function loadProcessOrderDataByMachine(machineId) {
     }
 }
 
-// Funktion zum Laden von Microstops
+// Retrieve the machine ID using a line code, using cached data if available
+async function getMachineIdFromLineCode(lineCode) {
+    try {
+        const machines = await loadMachineData();
+        const machine = machines.find((m) => m.name === lineCode);
+        if (machine) {
+            oeeLogger.info(`Machine ID ${machine.machine_id} found for line code: ${lineCode}`);
+            return machine.machine_id;
+        } else {
+            oeeLogger.warn(`No machine ID found for line code: ${lineCode}`);
+            return null;
+        }
+    } catch (error) {
+        errorLogger.error(`Failed to retrieve machine ID: ${error.message}`);
+        throw new Error("Could not retrieve machine data");
+    }
+}
+
+// Check for a running order for a specific machine, caching the result
+async function checkForRunningOrder(machineId) {
+    if (runningOrderCache[machineId]) {
+        oeeLogger.debug(`Returning cached running order for machine ID: ${machineId}`);
+        return runningOrderCache[machineId];
+    }
+    try {
+        const response = await apiClient.get(`/processorders/rel`, {
+            params: { machineId, mark: true },
+        });
+        const runningOrder = response.data;
+        if (runningOrder && runningOrder.length > 0) {
+            oeeLogger.info(`Running order found for machine ID: ${machineId}`);
+            runningOrderCache[machineId] = runningOrder[0];
+            return runningOrder[0];
+        } else {
+            oeeLogger.warn(`No running order found for machine ID: ${machineId}`);
+            runningOrderCache[machineId] = null;
+            return null;
+        }
+    } catch (error) {
+        errorLogger.error(`Failed to check for running order: ${error.message}`);
+        throw new Error("Could not retrieve process order data");
+    }
+}
+
+// Load microstops data from the API, caching the result
 async function loadMicrostops() {
     if (microstopsCache) {
         oeeLogger.debug("Returning cached microstops data");
         return microstopsCache;
     }
-
     try {
         const response = await apiClient.get(`/microstops`);
         if (Array.isArray(response.data)) {
@@ -170,27 +196,18 @@ async function loadMicrostops() {
     }
 }
 
-// Funktion zum Laden und Vorbereiten der OEE-Daten
+// Load and prepare OEE data
 async function loadDataAndPrepareOEE(machineId) {
     if (OEEDataCache[machineId]) {
         oeeLogger.debug(`Returning cached OEE data for machine ID: ${machineId}`);
         return OEEDataCache[machineId];
     }
-
     try {
         const response = await apiClient.get(`/prepareOEE/oee/${machineId}`);
-
-        if (!response.data || typeof response.data !== "object") {
-            throw new Error("Invalid data returned from the API.");
-        }
-
         const OEEData = response.data;
-
         oeeLogger.info(`OEE data loaded successfully for machine ID: ${machineId}`);
         oeeLogger.debug(`OEE data: ${JSON.stringify(OEEData, null, 2)}`);
-
         OEEDataCache[machineId] = OEEData;
-
         return OEEData;
     } catch (error) {
         errorLogger.error(`Failed to load OEE data for machine ID ${machineId}: ${error.message}`);
@@ -198,13 +215,12 @@ async function loadDataAndPrepareOEE(machineId) {
     }
 }
 
-// Funktion zum Laden der Schichtmodelldaten für eine spezifische Maschine
+// Load shift model data for a specific machine from the API, caching the result
 async function loadShiftModelData(machineId) {
     if (shiftModelCache[machineId]) {
         oeeLogger.debug(`Returning cached shift model data for machine ID: ${machineId}`);
         return shiftModelCache[machineId];
     }
-
     try {
         const response = await apiClient.get(`/shiftmodels/machine/${machineId}`);
         if (Array.isArray(response.data)) {
@@ -221,7 +237,60 @@ async function loadShiftModelData(machineId) {
     }
 }
 
-// Hilfsfunktion zum Parsen von Datumsstrings
+// Filters and calculates durations for OEE calculation
+function filterAndCalculateDurations(processOrder, plannedDowntime, unplannedDowntime, microstops, shifts) {
+    const orderStart = parseDate(processOrder.Start).startOf("hour");
+    const orderEnd = parseDate(processOrder.End).endOf("hour");
+
+    oeeLogger.debug(`Processing order from ${orderStart.format()} to ${orderEnd.format()}`);
+
+    // Filter planned downtime entries
+    const filteredPlannedDowntime = plannedDowntime.filter((downtime) => {
+        const start = parseDate(downtime.Start);
+        const end = parseDate(downtime.End);
+        return start.isBetween(orderStart, orderEnd, null, "[]") || end.isBetween(orderStart, orderEnd, null, "[]");
+    });
+
+    // Filter unplanned downtime entries
+    const filteredUnplannedDowntime = unplannedDowntime.filter((downtime) => {
+        const start = parseDate(downtime.Start);
+        const end = parseDate(downtime.End);
+        return start.isBetween(orderStart, orderEnd, null, "[]") || end.isBetween(orderStart, orderEnd, null, "[]");
+    });
+
+    // Filter microstops
+    const filteredMicrostops = microstops.filter((microstop) => {
+        const start = parseDate(microstop.Start);
+        const end = parseDate(microstop.End);
+        return start.isBetween(orderStart, orderEnd, null, "[]") || end.isBetween(orderStart, orderEnd, null, "[]");
+    });
+
+    // Filter breaks based on shifts
+    const filteredBreaks = shifts.flatMap((shift) => {
+        const shiftStart = moment.utc(`${moment(orderStart).format("YYYY-MM-DD")} ${shift.shift_start_time}`, "YYYY-MM-DD HH:mm");
+        const shiftEnd = moment.utc(`${moment(orderStart).format("YYYY-MM-DD")} ${shift.shift_end_time}`, "YYYY-MM-DD HH:mm");
+        const breakStart = moment.utc(`${moment(orderStart).format("YYYY-MM-DD")} ${shift.break_start}`, "YYYY-MM-DD HH:mm");
+        const breakEnd = moment.utc(`${moment(orderStart).format("YYYY-MM-DD")} ${shift.break_end}`, "YYYY-MM-DD HH:mm");
+
+        if (breakEnd.isBefore(breakStart)) breakEnd.add(1, "day");
+        if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, "day");
+
+        return shift.machine_id === processOrder.machine_id ? [{
+            breakDuration: calculateBreakDuration(shift.break_start, shift.break_end),
+            breakStart: breakStart.format(),
+            breakEnd: breakEnd.format(),
+        }] : [];
+    });
+
+    return {
+        plannedDowntime: filteredPlannedDowntime,
+        unplannedDowntime: filteredUnplannedDowntime,
+        microstops: filteredMicrostops,
+        breaks: filteredBreaks,
+    };
+}
+
+// Helper function to parse date strings into Moment objects in UTC
 function parseDate(dateStr) {
     return moment.utc(dateStr);
 }
@@ -233,7 +302,7 @@ function calculateBreakDuration(breakStart, breakEnd) {
     return breakEndTime.diff(breakStartTime, "minutes");
 }
 
-// Export aller Funktionen
+// Export all functions to be used in other modules
 module.exports = {
     loadMachineData,
     loadUnplannedDowntimeData,
@@ -242,5 +311,8 @@ module.exports = {
     loadProcessOrderData,
     loadDataAndPrepareOEE,
     loadProcessOrderDataByMachine,
-    loadShiftModelData
+    getMachineIdFromLineCode,
+    checkForRunningOrder,
+    loadShiftModelData,
+    filterAndCalculateDurations,
 };

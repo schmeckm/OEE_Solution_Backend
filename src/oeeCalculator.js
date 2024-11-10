@@ -9,6 +9,14 @@ dotenv.config();
 // Constants
 const OEE_API_URL = process.env.OEE_API_URL || config.oeeApiUrl;
 
+// Creating an axios instance with base URL and default headers
+const apiClient = axios.create({
+    baseURL: OEE_API_URL,
+    headers: {
+        'x-api-key': process.env.API_KEY, // API key from environment variables
+    },
+});
+
 // Classification levels for OEE metrics
 const CLASSIFICATION_LEVELS = {
     WORLD_CLASS: config.classificationLevels.WORLD_CLASS,
@@ -22,7 +30,7 @@ const CLASSIFICATION_LEVELS = {
 // =====================
 async function fetchOEEDataFromAPI(machineId) {
     try {
-        const response = await axios.get(`${OEE_API_URL}/prepareOEE/oee/${machineId}`);
+        const response = await apiClient.get(`/prepareOEE/oee/${machineId}`);
         return response.data;
     } catch (error) {
         errorLogger.error(`Failed to fetch OEE data from API for machineId ${machineId}: ${error.message}`);
@@ -71,7 +79,7 @@ class OEECalculator {
         try {
             oeeLogger.info(`Initializing OEECalculator for machineId ${machineId}`);
             const OEEData = await fetchOEEDataFromAPI(machineId);
-            oeeLogger.debug(`Fetched OEEData for machineId ${machineId}:`, OEEData); // Protokolliere die erhaltenen Daten
+            oeeLogger.debug(`Fetched OEEData for machineId ${machineId}:`, OEEData); // Log the received data
             if (OEEData) {
                 this.setOEEData(OEEData, machineId);
             } else {
@@ -102,7 +110,6 @@ class OEECalculator {
 
         let plannedTakt, actualTakt, remainingTime, expectedEndTime;
 
-        //Process Order not started and not finally confirmed 
         if (!processOrder.ActualProcessOrderStart && !processOrder.ActualProcessOrderEnd) {
             const plannedDurationMinutes = plannedEnd.diff(plannedStart, "minutes");
             plannedTakt = plannedDurationMinutes / processOrder.PlannedProductionQuantity;
@@ -110,28 +117,20 @@ class OEECalculator {
             remainingTime = processOrder.PlannedProductionQuantity * actualTakt;
             expectedEndTime = plannedStart.add(remainingTime, "minutes");
 
-            //Process Order started but not finally confirmed 
         } else if (processOrder.ActualProcessOrderStart && !processOrder.ActualProcessOrderEnd) {
             const actualStart = moment(processOrder.ActualProcessOrderStart);
             const plannedDurationMinutes = plannedEnd.diff(actualStart, "minutes");
             plannedTakt = plannedDurationMinutes / processOrder.PlannedProductionQuantity;
             actualTakt = plannedTakt;
-
-            //Das kann hier noch nicht berechnet werden da hier die Formel lautet: Der Wert liegt aber hier noch nicht vor
-            //RemainingTime = (processOrder.PlannedProductionQuantity - ActualProductionQuantity) * actualTakt;           
             remainingTime = (processOrder.PlannedProductionQuantity - processOrder.ActualProductionQuantity) * actualTakt;
             expectedEndTime = plannedEnd;
 
-            //Process Order fully completed on the line
         } else if (processOrder.ActualProcessOrderStart && processOrder.ActualProcessOrderEnd) {
             const actualStart = moment(processOrder.ActualProcessOrderStart);
             const actualEnd = moment(processOrder.ActualProcessOrderEnd);
             const actualDurationMinutes = actualEnd.diff(actualStart, "minutes");
             plannedTakt = plannedEnd.diff(plannedStart, "minutes") / processOrder.PlannedProductionQuantity;
             actualTakt = actualDurationMinutes / processOrder.PlannedProductionQuantity;
-
-            //Das kann hier noch nicht berechnet werden da hier die Formel lautet: Der Wert liegt aber hier noch nicht vor
-            //RemainingTime = (processOrder.PlannedProductionQuantity - ActualProductionQuantity) * actualTakt; 
             remainingTime = (processOrder.PlannedProductionQuantity - processOrder.ActualProductionQuantity) * actualTakt;
             expectedEndTime = actualEnd.add(remainingTime, "minutes");
         }
@@ -147,12 +146,9 @@ class OEECalculator {
             remainingTime,
             expectedEndTime: expectedEndTime ? expectedEndTime.format("YYYY-MM-DDTHH:mm:ss.SSSZ") : null,
         };
-
-        console.log(this.oeeData[machineId])
-
     }
 
-    //This value are coming from OEEProcessor 
+    // Calculate OEE metrics
     async calculateMetrics(machineId, totalUnplannedDowntime, totalPlannedDowntime, ActualProductionQuantity, ActualProductionYield, processOrder) {
         try {
             if (!this.oeeData[machineId]) {
@@ -176,24 +172,14 @@ class OEECalculator {
                 throw new Error("At least ActualProcessOrderStart or Start is required");
             }
 
-            // Validierung der Eingaben
-            if (typeof totalUnplannedDowntime !== 'number' || typeof ActualProductionQuantity !== 'number' || typeof ActualProductionYield !== 'number') {
-                throw new Error("totalUnplannedDowntime, ProductionQuantity and ActualProductionYield must be numbers");
-            }
-
             const plannedStart = moment(Start);
             const plannedEnd = moment(End);
             const actualStart = moment(ActualProcessOrderStart || Start);
             const actualEnd = ActualProcessOrderEnd ? moment(ActualProcessOrderEnd) : null;
 
-            if (!plannedStart.isValid() || !plannedEnd.isValid() || !actualStart.isValid() || (actualEnd && !actualEnd.isValid())) {
-                throw new Error("Invalid date provided in the input");
-            }
-
             const plannedDurationMinutes = plannedEnd.diff(plannedStart, "minutes");
             let plannedTakt, actualTakt, remainingTime, expectedEndTime;
 
-            //Machine has completed the process Order - WIP
             if (actualEnd) {
                 const actualDurationMinutes = actualEnd.diff(actualStart, "minutes");
                 plannedTakt = plannedDurationMinutes / PlannedProductionQuantity;
@@ -201,8 +187,6 @@ class OEECalculator {
                 remainingTime = (PlannedProductionQuantity - ActualProductionQuantity) * actualTakt;
                 expectedEndTime = actualEnd.add(remainingTime, "minutes");
             } else {
-
-                //Machine is still producting - Order not completed yet
                 plannedTakt = plannedDurationMinutes / PlannedProductionQuantity;
                 actualTakt = ActualProductionQuantity > 0 ? plannedDurationMinutes / ActualProductionQuantity : null;
                 remainingTime = (PlannedProductionQuantity - ActualProductionQuantity) * (actualTakt || plannedTakt);
