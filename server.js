@@ -47,17 +47,13 @@ app.use((req, res, next) => {
     const clientIp = req.ip || req.connection.remoteAddress;
     const requestHostname = req.hostname;
 
-    // Define if request is considered internal
     const isInternalRequest = ['::1', '127.0.0.1', 'localhost', process.env.INTERNAL_SERVER_IP].includes(clientIp) ||
         requestHostname === 'localhost' ||
         requestHostname === process.env.INTERNAL_SERVER_HOSTNAME;
 
-    // Logging to help with debugging
     console.log(`Request received from IP: ${clientIp}, Hostname: ${requestHostname}`);
     console.log(`Internal Request Check: ${isInternalRequest ? 'Internal' : 'External'}`);
     console.log(`Environment: ${process.env.NODE_ENV}`);
-    console.log(`Expected API Key: ${process.env.API_KEY}`);
-    console.log(`Received API Key: ${apiKey}`);
 
     if (process.env.NODE_ENV === 'production') {
         if (!isInternalRequest) {
@@ -125,14 +121,12 @@ const mqttClient = initializeMqttClient();
 // === HTTPS Server Setup ===
 let sslOptions;
 if (process.env.NODE_ENV === 'production') {
-    // Production environment - Use valid certificate
     sslOptions = {
         key: fs.readFileSync(process.env.SSL_KEY_PATH),
         cert: fs.readFileSync(process.env.SSL_CERT_PATH),
         ca: process.env.SSL_CA_PATH ? fs.readFileSync(process.env.SSL_CA_PATH) : undefined
     };
 } else {
-    // Development environment - Allow self-signed certificates
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     sslOptions = {
         key: fs.readFileSync(process.env.SSL_KEY_PATH),
@@ -179,14 +173,32 @@ const swaggerOptions = {
                 ApiKeyAuth: {
                     type: "apiKey",
                     in: "header",
-                    name: "x-api-key"
+                    name: "x-api-key",
+                    description: "Enter your API Key to access the API"
                 }
             }
         },
-        security: [{ ApiKeyAuth: [] }]
+        security: [{
+            ApiKeyAuth: []
+        }]
     },
     apis: ["./routes/*.js"],
 };
 
+// Swagger UI Setup without pre-filled API key for production
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs, {
+    swaggerOptions: {
+        authAction: process.env.NODE_ENV !== 'production' ? {
+            ApiKeyAuth: {
+                name: "x-api-key",
+                schema: {
+                    type: "apiKey",
+                    in: "header",
+                    name: "x-api-key"
+                },
+                value: process.env.API_KEY
+            }
+        } : undefined
+    }
+}));
