@@ -7,7 +7,6 @@ const fs = require('fs');
 const env = process.env.NODE_ENV || 'development';
 const envFilePath = path.resolve(__dirname, `.env.${env}`);
 
-// Load .env file if it exists
 if (fs.existsSync(envFilePath)) {
     dotenv.config({ path: envFilePath });
     console.log(`Loaded environment variables from ${envFilePath}`);
@@ -41,6 +40,23 @@ const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS || '*';
 app.use(cors({
     origin: allowedOrigins === '*' ? true : allowedOrigins.split(',')
 }));
+
+// === API Key Middleware for External Requests Only ===
+app.use((req, res, next) => {
+    const apiKey = req.headers['x-api-key'];
+    const clientIp = req.ip || req.connection.remoteAddress;
+
+    // Erlaubt Zugriff ohne API-Key für localhost oder interne IP
+    const isInternalRequest = ['::1', '127.0.0.1', 'localhost', process.env.INTERNAL_SERVER_IP].includes(clientIp);
+
+    if (process.env.NODE_ENV === 'production' && !isInternalRequest) {
+        if (apiKey !== process.env.API_KEY) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
+        }
+    }
+
+    next();
+});
 
 // === Security Middleware ===
 app.use(helmet());
