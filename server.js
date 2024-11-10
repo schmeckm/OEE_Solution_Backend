@@ -1,27 +1,18 @@
+// Load Environment Variables
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 
-// Load the appropriate .env file based on the environment
-const env = process.env.NODE_ENV;
-let envFilePath;
+// Dynamically load .env file based on NODE_ENV
+const env = process.env.NODE_ENV || 'development';
+const envFilePath = path.resolve(__dirname, `.env.${env}`);
 
-if (env === 'production') {
-    envFilePath = path.resolve(__dirname, '.env.production');
-} else if (env === 'development') {
-    envFilePath = path.resolve(__dirname, '.env.development');
-} else if (env === 'deployment') {
-    envFilePath = path.resolve(__dirname, '.env.deployment');
-} else {
-    envFilePath = path.resolve(__dirname, '.env');
-}
-
-// Check if the specified .env file exists before loading
+// Load .env file if it exists
 if (fs.existsSync(envFilePath)) {
     dotenv.config({ path: envFilePath });
     console.log(`Loaded environment variables from ${envFilePath}`);
 } else {
-    console.warn(`Environment file ${envFilePath} not found. Make sure to create the appropriate .env file.`);
+    console.warn(`Environment file ${envFilePath} not found. Default variables will be used.`);
 }
 
 const express = require("express");

@@ -10,21 +10,13 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # Schritt 1: Repository klonen 
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Schritt 2: Installieren der Abhängigkeiten
       - name: Install Dependencies
         run: |
           yarn install
 
-      # Schritt 3: Anwendung starten oder neu starten (PM2)
-      - name: Start or Restart Application
+      - name: Start or Restart Application in Production
         run: |
-          pm2 start server.js --name "OEE_solution" --update-env || pm2 restart OEE_solution --update-env
-
-      # Schritt 4: Überprüfung der PM2 Logs für mögliche Fehler
-      - name: Check PM2 Logs
-        run: |
-          pm2 logs OEE_solution --lines 50
+          pm2 start ecosystem.config.js --env production || pm2 restart OEE_solution --env production
