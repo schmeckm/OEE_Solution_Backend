@@ -42,7 +42,6 @@ app.use(cors({
 }));
 
 // === API Key Middleware for External Requests Only ===
-// === Enhanced API Key Middleware with Logging for Debugging ===
 app.use((req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     const clientIp = req.ip || req.connection.remoteAddress;
@@ -57,6 +56,8 @@ app.use((req, res, next) => {
     console.log(`Request received from IP: ${clientIp}, Hostname: ${requestHostname}`);
     console.log(`Internal Request Check: ${isInternalRequest ? 'Internal' : 'External'}`);
     console.log(`Environment: ${process.env.NODE_ENV}`);
+    console.log(`Expected API Key: ${process.env.API_KEY}`);
+    console.log(`Received API Key: ${apiKey}`);
 
     if (process.env.NODE_ENV === 'production') {
         if (!isInternalRequest) {
@@ -73,7 +74,6 @@ app.use((req, res, next) => {
 
     next();
 });
-
 
 // === Security Middleware ===
 app.use(helmet());
