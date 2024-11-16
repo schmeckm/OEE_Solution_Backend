@@ -75,7 +75,7 @@ function registerApiRoutes(app) {
     app.use("/api/v1/oee-metrics", verifyApiKey, oeeMetricsRouter); // Updated path for oeeMetricsRouter
     app.use("/api/v1/settings", verifyApiKey, settingRouter);
     app.use("/api/v1/prepareOEE", verifyApiKey, prepareOEERouter);
-    app.use("/api/v1/oee-data", verifyApiKey, oeeDataRouter); // Updated path for oeeDataRouter
+    app.use("/api/v1/oee", verifyApiKey, oeeDataRouter); // Updated path for oeeDataRouter
     app.use('/api/v1/tact', verifyApiKey, tactRouter);
 }
 

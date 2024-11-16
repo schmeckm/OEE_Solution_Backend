@@ -6,9 +6,14 @@
     "auditLog": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\.daf9aef98fbeaca7b27213949185a30b116b8ef5-audit.json",
     "files": [
         {
-            "date": 1731272340332,
-            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\oee-2024-11-10.log",
-            "hash": "e43f6290e17d41909b2eaefbcc72b6fceb4d97f71fe99f9b6be14278754fab70"
+            "date": 1731700643688,
+            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\oee-2024-11-15.log",
+            "hash": "d9e4058a6fe187cfdb3af66433f048bfc2dd91ee95e7b13e77687a0dbb52eab5"
+        },
+        {
+            "date": 1731722401736,
+            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\oee-2024-11-16.log",
+            "hash": "05f1a5f3e55873016d4175f82994121b7e7c46edaa8129e9a33748afc39a9f8c"
         }
     ],
     "hashType": "sha256"

@@ -39,7 +39,7 @@ const router = express.Router();
  *         description: Machine OEE data not found.
  */
 
-router.get('/oee/:machineId', async(req, res) => {
+router.get('/:machineId', async(req, res) => {
     const { machineId } = req.params;
 
     try {
