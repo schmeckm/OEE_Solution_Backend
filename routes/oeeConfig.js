@@ -169,22 +169,23 @@ router.put('/:key', (req, res) => {
         const key = req.params.key;
         const updatedConfig = req.body;
 
-        if (!updatedConfig || typeof updatedConfig !== 'object') {
-            return res.status(400).json({ message: 'Invalid configuration data.' });
-        }
+        // Debugging-Logs
+        console.log(`Update-Aufruf für Key: ${key}`);
+        console.log('Aktuelle Konfigurationen:', oeeConfig);
 
         if (oeeConfig[key] !== undefined) {
-            oeeConfig[key] = { ...oeeConfig[key], ...updatedConfig }; // Merge bestehender Daten
+            oeeConfig[key] = { ...oeeConfig[key], ...updatedConfig }; // Aktualisiere spezifische Felder
             saveOEEConfig(oeeConfig);
-            res.status(200).json({ message: `Key ${key} updated successfully` });
+            res.status(200).json({ message: `Key ${key} erfolgreich aktualisiert.` });
         } else {
-            res.status(404).json({ message: `Key ${key} not found` });
+            res.status(404).json({ message: `Key ${key} nicht gefunden.` });
         }
     } catch (error) {
-        console.error('Error updating OEE configuration:', error);
-        res.status(500).json({ message: 'Failed to update the key' });
+        console.error('Fehler beim Aktualisieren der OEE-Konfiguration:', error);
+        res.status(500).json({ message: 'Fehler beim Aktualisieren der OEE-Konfiguration.' });
     }
 });
+
 
 
 /**
