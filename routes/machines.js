@@ -1,5 +1,7 @@
 const express = require('express');
+const { v4: uuidv4 } = require('uuid'); // For generating unique IDs
 const { loadMachines, saveMachines } = require('../services/machineService');
+const { body, param, validationResult } = require('express-validator'); // For validation
 
 const router = express.Router();
 
@@ -27,9 +29,14 @@ const router = express.Router();
  *               items:
  *                 type: object
  */
-router.get('/', (req, res) => {
-    const machines = loadMachines(); // Load all machines from the service
-    res.json(machines); // Return the list of machines as a JSON response
+router.get('/', async (req, res) => {
+    try {
+        const machines = await loadMachines(); // Load all machines asynchronously
+        res.json(machines || []); // Return the list of machines or an empty array
+    } catch (error) {
+        console.error('Error loading machines:', error);
+        res.status(500).json({ message: 'Failed to load machines' });
+    }
 });
 
 /**
@@ -56,13 +63,18 @@ router.get('/', (req, res) => {
  *       404:
  *         description: Machine not found.
  */
-router.get('/:id', (req, res) => {
-    const machines = loadMachines(); // Load all machines from the service
-    const machine = machines.find(m => m.machine_id === req.params.id); // Find the machine by ID
-    if (machine) {
-        res.json(machine); // Return the machine as a JSON response
-    } else {
-        res.status(404).json({ message: `Machine with ID ${req.params.id} not found` }); // Send a 404 response if not found
+router.get('/:id', param('id').isUUID(), async (req, res) => {
+    try {
+        const machines = await loadMachines();
+        const machine = machines.find(m => m.machine_id === req.params.id);
+        if (machine) {
+            res.json(machine);
+        } else {
+            res.status(404).json({ message: `Machine with ID ${req.params.id} not found` });
+        }
+    } catch (error) {
+        console.error('Error retrieving machine:', error);
+        res.status(500).json({ message: 'Failed to retrieve machine' });
     }
 });
 
@@ -87,24 +99,32 @@ router.get('/:id', (req, res) => {
  *     responses:
  *       201:
  *         description: Machine created successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 machine:
- *                   type: object
  */
-router.post('/', (req, res) => {
-    const machines = loadMachines(); // Load existing machines
-    const newMachine = req.body; // Get the new machine data from the request body
-    newMachine.machine_id = (machines.length ? Math.max(...machines.map(m => parseInt(m.machine_id))) + 1 : 1).toString(); // Generate a new machine ID
-    machines.push(newMachine); // Add the new machine to the list
-    saveMachines(machines); // Save the updated list of machines
-    res.status(201).json({ message: 'New machine added successfully', machine: newMachine }); // Send a success response
-});
+router.post(
+    '/',
+    body('name').isString().notEmpty(),
+    body('type').isString().notEmpty(),
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        try {
+            const machines = await loadMachines();
+            const newMachine = {
+                machine_id: uuidv4(), // Generate a unique ID
+                ...req.body
+            };
+            machines.push(newMachine);
+            await saveMachines(machines);
+            res.status(201).json({ message: 'New machine added successfully', machine: newMachine });
+        } catch (error) {
+            console.error('Error creating machine:', error);
+            res.status(500).json({ message: 'Failed to create machine' });
+        }
+    }
+);
 
 /**
  * @swagger
@@ -113,50 +133,34 @@ router.post('/', (req, res) => {
  *     summary: Update an existing machine
  *     tags: [Machines]
  *     description: Update the details of an existing machine.
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The machine ID.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               type:
- *                 type: string
- *     responses:
- *       200:
- *         description: Machine updated successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 machine:
- *                   type: object
- *       404:
- *         description: Machine not found.
  */
-router.put('/:id', (req, res) => {
-    const machines = loadMachines(); // Load all machines from the service
-    const index = machines.findIndex(m => m.machine_id === req.params.id); // Find the index of the machine to update
-    if (index !== -1) {
-        machines[index] = {...machines[index], ...req.body }; // Update the machine with the new data
-        saveMachines(machines); // Save the updated list of machines
-        res.status(200).json({ message: 'Machine updated successfully', machine: machines[index] }); // Send a success response
-    } else {
-        res.status(404).json({ message: `Machine with ID ${req.params.id} not found` }); // Send a 404 response if not found
+router.put(
+    '/:id',
+    param('id').isUUID(),
+    body('name').optional().isString(),
+    body('type').optional().isString(),
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        try {
+            const machines = await loadMachines();
+            const index = machines.findIndex(m => m.machine_id === req.params.id);
+            if (index !== -1) {
+                machines[index] = { ...machines[index], ...req.body };
+                await saveMachines(machines);
+                res.status(200).json({ message: 'Machine updated successfully', machine: machines[index] });
+            } else {
+                res.status(404).json({ message: `Machine with ID ${req.params.id} not found` });
+            }
+        } catch (error) {
+            console.error('Error updating machine:', error);
+            res.status(500).json({ message: 'Failed to update machine' });
+        }
     }
-});
+);
 
 /**
  * @swagger
@@ -165,29 +169,22 @@ router.put('/:id', (req, res) => {
  *     summary: Delete a machine
  *     tags: [Machines]
  *     description: Remove a machine from the list.
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The machine ID.
- *     responses:
- *       200:
- *         description: Machine deleted successfully.
- *       404:
- *         description: Machine not found.
  */
-router.delete('/:id', (req, res) => {
-    let machines = loadMachines(); // Load all machines from the service
-    const initialLength = machines.length; // Store the initial length of the machine list
-    machines = machines.filter(m => m.machine_id !== req.params.id); // Filter out the machine to delete
-    if (machines.length !== initialLength) {
-        saveMachines(machines); // Save the updated list of machines
-        res.status(200).json({ message: 'Machine deleted successfully' }); // Send a success response
-    } else {
-        res.status(404).json({ message: `Machine with ID ${req.params.id} not found` }); // Send a 404 response if not found
+router.delete('/:id', param('id').isUUID(), async (req, res) => {
+    try {
+        let machines = await loadMachines();
+        const initialLength = machines.length;
+        machines = machines.filter(m => m.machine_id !== req.params.id);
+        if (machines.length !== initialLength) {
+            await saveMachines(machines);
+            res.status(200).json({ message: 'Machine deleted successfully' });
+        } else {
+            res.status(404).json({ message: `Machine with ID ${req.params.id} not found` });
+        }
+    } catch (error) {
+        console.error('Error deleting machine:', error);
+        res.status(500).json({ message: 'Failed to delete machine' });
     }
 });
 
-module.exports = router; // Export the router for use in other parts of the application
+module.exports = router;
