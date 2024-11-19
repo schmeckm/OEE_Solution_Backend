@@ -16,18 +16,32 @@ const router = express.Router();
  *   get:
  *     summary: Get the entire OEE configuration
  *     tags: [OEE Configuration]
- *     description: Retrieve the entire OEE configuration as a JSON object.
+ *     description: Retrieve the entire OEE configuration formatted as an array.
  *     responses:
  *       200:
- *         description: The entire OEE configuration.
+ *         description: The entire OEE configuration as an array.
  *         content:
  *           application/json:
  *             schema:
- *               type: object
+ *               type: array
+ *               items:
+ *                 type: object
  */
 router.get('/', (req, res) => {
-    const oeeConfig = loadOEEConfig();
-    res.json(oeeConfig);
+    try {
+        const oeeConfig = loadOEEConfig();
+
+        // Format the object into an array
+        const formattedData = Object.entries(oeeConfig).map(([key, value]) => ({
+            key, // Add the key as a property
+            ...value // Spread the rest of the properties
+        }));
+
+        res.status(200).json(formattedData);
+    } catch (error) {
+        console.error('Error loading OEE configuration:', error);
+        res.status(500).json({ message: 'Failed to retrieve OEE configuration' });
+    }
 });
 
 /**
@@ -58,14 +72,20 @@ router.get('/', (req, res) => {
  *         description: Key not found.
  */
 router.get('/:key', (req, res) => {
-    const oeeConfig = loadOEEConfig();
-    const key = req.params.key;
-    if (oeeConfig[key] !== undefined) {
-        res.json({
-            [key]: oeeConfig[key]
-        });
-    } else {
-        res.status(404).json({ message: `Key ${key} not found` });
+    try {
+        const oeeConfig = loadOEEConfig();
+        const key = req.params.key;
+        if (oeeConfig[key] !== undefined) {
+            res.json({
+                key,
+                ...oeeConfig[key]
+            });
+        } else {
+            res.status(404).json({ message: `Key ${key} not found` });
+        }
+    } catch (error) {
+        console.error('Error loading OEE configuration:', error);
+        res.status(500).json({ message: 'Failed to retrieve the key' });
     }
 });
 
@@ -89,13 +109,18 @@ router.get('/:key', (req, res) => {
  *         description: New OEE configuration added successfully.
  */
 router.post('/', (req, res) => {
-    const oeeConfig = loadOEEConfig();
-    const newConfig = req.body;
-    for (let key in newConfig) {
-        oeeConfig[key] = newConfig[key];
+    try {
+        const oeeConfig = loadOEEConfig();
+        const newConfig = req.body;
+        for (let key in newConfig) {
+            oeeConfig[key] = newConfig[key];
+        }
+        saveOEEConfig(oeeConfig);
+        res.status(201).json({ message: 'New OEE configuration added successfully' });
+    } catch (error) {
+        console.error('Error adding OEE configuration:', error);
+        res.status(500).json({ message: 'Failed to add OEE configuration' });
     }
-    saveOEEConfig(oeeConfig);
-    res.status(201).json({ message: 'New OEE configuration added successfully' });
 });
 
 /**
@@ -128,15 +153,20 @@ router.post('/', (req, res) => {
  *         description: Key not found.
  */
 router.put('/:key', (req, res) => {
-    const oeeConfig = loadOEEConfig();
-    const key = req.params.key;
-    const value = req.body.value;
-    if (oeeConfig[key] !== undefined) {
-        oeeConfig[key] = value;
-        saveOEEConfig(oeeConfig);
-        res.status(200).json({ message: `Key ${key} updated successfully` });
-    } else {
-        res.status(404).json({ message: `Key ${key} not found` });
+    try {
+        const oeeConfig = loadOEEConfig();
+        const key = req.params.key;
+        const value = req.body.value;
+        if (oeeConfig[key] !== undefined) {
+            oeeConfig[key] = value;
+            saveOEEConfig(oeeConfig);
+            res.status(200).json({ message: `Key ${key} updated successfully` });
+        } else {
+            res.status(404).json({ message: `Key ${key} not found` });
+        }
+    } catch (error) {
+        console.error('Error updating OEE configuration:', error);
+        res.status(500).json({ message: 'Failed to update the key' });
     }
 });
 
@@ -161,14 +191,19 @@ router.put('/:key', (req, res) => {
  *         description: Key not found.
  */
 router.delete('/:key', (req, res) => {
-    const oeeConfig = loadOEEConfig();
-    const key = req.params.key;
-    if (oeeConfig[key] !== undefined) {
-        delete oeeConfig[key];
-        saveOEEConfig(oeeConfig);
-        res.status(200).json({ message: `Key ${key} deleted successfully` });
-    } else {
-        res.status(404).json({ message: `Key ${key} not found` });
+    try {
+        const oeeConfig = loadOEEConfig();
+        const key = req.params.key;
+        if (oeeConfig[key] !== undefined) {
+            delete oeeConfig[key];
+            saveOEEConfig(oeeConfig);
+            res.status(200).json({ message: `Key ${key} deleted successfully` });
+        } else {
+            res.status(404).json({ message: `Key ${key} not found` });
+        }
+    } catch (error) {
+        console.error('Error deleting OEE configuration:', error);
+        res.status(500).json({ message: 'Failed to delete the key' });
     }
 });
 
