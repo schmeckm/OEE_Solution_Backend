@@ -1,13 +1,13 @@
 {
-    "PlannedProductionQuantity": {
-        "alias": "Planned Production Time",
-        "type": "number",
-        "command": "metrics",
+    "0": {
+        "key": "End2",
+        "alias": "Process Order End",
+        "type": "Int32",
+        "command": "DCMD",
         "metadata": {
-            "unit": "hours",
-            "description": "Total time planned for production"
+            "description": "End timestamp of the process order"
         },
-        "machineConnect": false
+        "machineConnect": true
     },
     "Runtime": {
         "alias": "Runtime",

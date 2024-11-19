@@ -111,15 +111,26 @@ router.get('/:key', (req, res) => {
 router.post('/', (req, res) => {
     try {
         const oeeConfig = loadOEEConfig();
-        const newConfig = req.body;
-        for (let key in newConfig) {
-            oeeConfig[key] = newConfig[key];
+        const newConfigs = req.body;
+
+        // Überprüfen, ob `req.body` ein Array ist
+        if (!Array.isArray(newConfigs)) {
+            return res.status(400).json({ message: 'Request body must be an array of configurations.' });
         }
+
+        // Alle neuen Konfigurationen hinzufügen
+        newConfigs.forEach((config) => {
+            if (!config.key) {
+                throw new Error('Each configuration must have a unique key.');
+            }
+            oeeConfig[config.key] = config;
+        });
+
         saveOEEConfig(oeeConfig);
-        res.status(201).json({ message: 'New OEE configuration added successfully' });
+        res.status(201).json({ message: 'New OEE configurations added successfully' });
     } catch (error) {
         console.error('Error adding OEE configuration:', error);
-        res.status(500).json({ message: 'Failed to add OEE configuration' });
+        res.status(500).json({ message: 'Failed to add OEE configurations' });
     }
 });
 
@@ -156,9 +167,14 @@ router.put('/:key', (req, res) => {
     try {
         const oeeConfig = loadOEEConfig();
         const key = req.params.key;
-        const value = req.body.value;
+        const updatedConfig = req.body;
+
+        if (!updatedConfig || typeof updatedConfig !== 'object') {
+            return res.status(400).json({ message: 'Invalid configuration data.' });
+        }
+
         if (oeeConfig[key] !== undefined) {
-            oeeConfig[key] = value;
+            oeeConfig[key] = { ...oeeConfig[key], ...updatedConfig }; // Merge bestehender Daten
             saveOEEConfig(oeeConfig);
             res.status(200).json({ message: `Key ${key} updated successfully` });
         } else {
@@ -169,6 +185,7 @@ router.put('/:key', (req, res) => {
         res.status(500).json({ message: 'Failed to update the key' });
     }
 });
+
 
 /**
  * @swagger
@@ -194,11 +211,16 @@ router.delete('/:key', (req, res) => {
     try {
         const oeeConfig = loadOEEConfig();
         const key = req.params.key;
+
+        console.log(`Versuche, Key ${key} zu löschen.`); // Debugging
+
         if (oeeConfig[key] !== undefined) {
             delete oeeConfig[key];
             saveOEEConfig(oeeConfig);
+            console.log(`Key ${key} erfolgreich gelöscht.`); // Debugging
             res.status(200).json({ message: `Key ${key} deleted successfully` });
         } else {
+            console.error(`Key ${key} nicht gefunden.`); // Debugging
             res.status(404).json({ message: `Key ${key} not found` });
         }
     } catch (error) {
@@ -206,5 +228,6 @@ router.delete('/:key', (req, res) => {
         res.status(500).json({ message: 'Failed to delete the key' });
     }
 });
+
 
 module.exports = router;
