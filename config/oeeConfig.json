@@ -1,14 +1,4 @@
 {
-    "0": {
-        "key": "End2",
-        "alias": "Process Order End",
-        "type": "Int32",
-        "command": "DCMD",
-        "metadata": {
-            "description": "End timestamp of the process order"
-        },
-        "machineConnect": true
-    },
     "Runtime": {
         "alias": "Runtime",
         "type": "number",
