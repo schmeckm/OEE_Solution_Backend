@@ -44,28 +44,18 @@ app.use(cors({
 // === API Key Middleware for External Requests Only ===
 app.use((req, res, next) => {
     const apiKey = req.headers['x-api-key'];
-    const clientIp = req.ip || req.connection.remoteAddress;
+    const clientIp = req.ip || req.socket.remoteAddress;
     const requestHostname = req.hostname;
 
     const isInternalRequest = ['::1', '127.0.0.1', 'localhost', process.env.INTERNAL_SERVER_IP].includes(clientIp) ||
         requestHostname === 'localhost' ||
         requestHostname === process.env.INTERNAL_SERVER_HOSTNAME;
 
-    console.log(`Request received from IP: ${clientIp}, Hostname: ${requestHostname}`);
-    console.log(`Internal Request Check: ${isInternalRequest ? 'Internal' : 'External'}`);
-    console.log(`Environment: ${process.env.NODE_ENV}`);
-
-    if (process.env.NODE_ENV === 'production') {
-        if (!isInternalRequest) {
-            console.log('External request detected. Checking API Key...');
-            if (apiKey !== process.env.API_KEY) {
-                console.error('Unauthorized: Invalid API Key provided.');
-                return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
-            }
-            console.log('API Key validated successfully for external request.');
-        } else {
-            console.log('Internal request - no API Key required.');
-        }
+    defaultLogger.info(`Request from IP: ${clientIp}, Hostname: ${requestHostname}, Internal: ${isInternalRequest}`);
+    
+    if (process.env.NODE_ENV === 'production' && !isInternalRequest && apiKey !== process.env.API_KEY) {
+        defaultLogger.error('Unauthorized: Invalid API Key provided.');
+        return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
     }
 
     next();
@@ -94,8 +84,15 @@ app.use(express.static(path.join(__dirname, "public")));
 // === Initialize InfluxDB (if used) ===
 initializeInfluxDB();
 
+// === Logging Middleware ===
+app.use((req, res, next) => {
+    defaultLogger.info(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
+    next();
+});
+
 // === Global Error Handling Middleware ===
 app.use((err, req, res, next) => {
+    defaultLogger.error(`[${new Date().toISOString()}] Error: ${err.message}`);
     defaultLogger.error(err.stack);
     res.status(500).send("Something went wrong!");
 });
@@ -160,45 +157,41 @@ const swaggerOptions = {
             description: "API for managing OEE metrics and related resources.",
             contact: {
                 name: "Support Team",
-                email: "support@example.com"
+                email: "oeesolution@gamil.com"
             }
         },
-        servers: [{
-            url: process.env.NODE_ENV === 'production' ?
-                `https://iotshowroom.de/api/v1` : `https://localhost:${httpsPort}/api/v1`,
-            description: process.env.NODE_ENV === 'production' ? "Production server" : "Development server"
-        }],
+        servers: [
+            {
+                url: process.env.NODE_ENV === 'production' ?
+                    `https://iotshowroom.de/api/v1` : `https://localhost:${process.env.HTTPS_PORT || 443}/api/v1`,
+                description: process.env.NODE_ENV === 'production' ? "Production server" : "Development server"
+            }
+        ],
         components: {
             securitySchemes: {
                 ApiKeyAuth: {
                     type: "apiKey",
                     in: "header",
                     name: "x-api-key",
-                    description: "Enter your API Key to access the API"
+                    description: "Enter your API Key to access the API."
                 }
             }
         },
-        security: [{
-            ApiKeyAuth: []
-        }]
+        security: [
+            {
+                ApiKeyAuth: [] // Alle Endpunkte erfordern den API-Key
+            }
+        ]
     },
-    apis: ["./routes/*.js"],
+    apis: ["./routes/*.js"], // Pfad zu deinen API-Routen
 };
 
-// Swagger UI Setup without pre-filled API key for production
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs, {
-    swaggerOptions: {
-        authAction: process.env.NODE_ENV !== 'production' ? {
-            ApiKeyAuth: {
-                name: "x-api-key",
-                schema: {
-                    type: "apiKey",
-                    in: "header",
-                    name: "x-api-key"
-                },
-                value: process.env.API_KEY
-            }
-        } : undefined
-    }
-}));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+
+// === Swagger JSON Endpoint ===
+app.get("/api-docs-json", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.send(swaggerDocs);
+});
+defaultLogger.info("Swagger documentation available at /api-docs and /api-docs-json.");
