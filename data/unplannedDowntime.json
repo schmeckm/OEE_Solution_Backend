@@ -4,13 +4,17 @@
     "Start": "2024-07-14T10:00:00.000Z",
     "End": "2024-07-14T11:00:00.000Z",
     "machine_id": "3",
-    "order_id": 1
+    "order_id": 1,
+    "durationInMinutes": 60,
+    "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd0"
   },
   {
     "order_id": 2,
     "ProcessOrderNumber": "47112",
     "Start": "2024-07-14T09:00:25.743Z",
     "End": "2024-07-14T09:10:30.555Z",
-    "machine_id": "2"
+    "machine_id": "2",
+    "durationInMinutes": 10,
+    "ID": "99b6d8e9-b239-486d-a2f5-7c80e4903023"
   }
 ]
