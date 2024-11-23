@@ -6,9 +6,14 @@
     "auditLog": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\.99b942e61f63165fff634f6fc6e46b9f8b2df647-audit.json",
     "files": [
         {
-            "date": 1732043907309,
-            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\unplannedDowntime-2024-11-19.log",
-            "hash": "00b85a0ed33f302ff08988c399bc9ac728a74f99c8e80816a9687af01ea829fb"
+            "date": 1732305157389,
+            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\unplannedDowntime-2024-11-22.log",
+            "hash": "248ae1727dae3225d51e3f9bc1b926ea674bbc11adbbb3339e8b40b686c294e6"
+        },
+        {
+            "date": 1732316572049,
+            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\unplannedDowntime-2024-11-23.log",
+            "hash": "db1abd2fe6c3c59e8831f3f889cc7af094e695e8784d0f00b7993c887fcc79d4"
         }
     ],
     "hashType": "sha256"

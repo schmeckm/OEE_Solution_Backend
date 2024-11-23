@@ -5,7 +5,8 @@ const {
     getPlannedDowntimeByProcessOrderNumber,
     getPlannedDowntimeByMachineId
 } = require('../services/plannedDowntimeService');
-const moment = require('moment'); // Moment.js für die Datumsmanipulation
+const moment = require('moment');
+const { check, validationResult } = require('express-validator');
 
 const router = express.Router();
 
@@ -33,16 +34,18 @@ function calculateDurationInMinutes(start, end) {
  *               items:
  *                 type: object
  */
-router.get('/', (req, res) => {
-    let data = loadPlannedDowntime();
-
-    // Calculate the duration in minutes for each downtime entry
-    data = data.map(downtime => ({
-        ...downtime,
-        durationInMinutes: calculateDurationInMinutes(downtime.Start, downtime.End)
-    }));
-
-    res.json(data);
+router.get('/', async (req, res) => {
+    try {
+        let data = await loadPlannedDowntime();
+        data = data.map(downtime => ({
+            ...downtime,
+            durationInMinutes: calculateDurationInMinutes(downtime.Start, downtime.End),
+        }));
+        res.status(200).json(data);
+    } catch (error) {
+        console.error('Error fetching planned downtimes:', error);
+        res.status(500).json({ message: 'An error occurred while retrieving planned downtimes' });
+    }
 });
 
 /**
@@ -51,244 +54,127 @@ router.get('/', (req, res) => {
  *   get:
  *     summary: Get planned downtime by Process Order Number
  *     tags: [Planned Downtime]
- *     description: Retrieve planned downtimes for a specific process order.
  *     parameters:
  *       - in: path
  *         name: processOrderNumber
  *         required: true
  *         schema:
  *           type: string
- *         description: The process order number to filter by.
  *     responses:
  *       200:
- *         description: A list of planned downtimes for the specified process order.
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *       404:
- *         description: No planned downtime found for the specified process order number.
+ *         description: A list of planned downtimes.
  */
-router.get('/processorder/:processOrderNumber', async(req, res) => {
-    const processOrderNumber = req.params.processOrderNumber;
-    let data = await getPlannedDowntimeByProcessOrderNumber(processOrderNumber);
+router.get('/processorder/:processOrderNumber', async (req, res) => {
+    try {
+        const processOrderNumber = req.params.processOrderNumber;
+        let data = await getPlannedDowntimeByProcessOrderNumber(processOrderNumber);
 
-    if (data.length > 0) {
-        data = data.map(downtime => ({
-            ...downtime,
-            durationInMinutes: calculateDurationInMinutes(downtime.Start, downtime.End)
-        }));
-        res.json(data);
-    } else {
-        res.status(404).json({ message: 'No planned downtime found for the specified process order number' });
+        if (data.length > 0) {
+            data = data.map(downtime => ({
+                ...downtime,
+                durationInMinutes: calculateDurationInMinutes(downtime.Start, downtime.End),
+            }));
+            res.status(200).json(data);
+        } else {
+            res.status(404).json({ message: 'No planned downtime found for the specified process order number' });
+        }
+    } catch (error) {
+        console.error('Error fetching planned downtimes:', error);
+        res.status(500).json({ message: 'An error occurred while retrieving planned downtimes' });
     }
-});
-
-/**
- * @swagger
- * /planneddowntime/machine/{machineId}:
- *   get:
- *     summary: Get planned downtime by Machine ID
- *     tags: [Planned Downtime]
- *     description: Retrieve planned downtimes for a specific machine.
- *     parameters:
- *       - in: path
- *         name: machineId
- *         required: true
- *         schema:
- *           type: string
- *         description: The machine ID to filter by.
- *     responses:
- *       200:
- *         description: A list of planned downtimes for the specified machine ID.
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *       404:
- *         description: No planned downtime found for the specified machine ID.
- */
-router.get('/machine/:machineId', async(req, res) => {
-    const machineId = req.params.machineId;
-    let data = await getPlannedDowntimeByMachineId(machineId);
-
-    if (data.length > 0) {
-        data = data.map(downtime => ({
-            ...downtime,
-            durationInMinutes: calculateDurationInMinutes(downtime.Start, downtime.End)
-        }));
-        res.json(data);
-    } else {
-        res.status(404).json({ message: 'No planned downtime found for the specified machine ID' });
-    }
-});
-
-/**
- * @swagger
- * /planneddowntime/{id}:
- *   get:
- *     summary: Get a specific planned downtime
- *     tags: [Planned Downtime]
- *     description: Retrieve a single planned downtime by ID.
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The planned downtime ID.
- *     responses:
- *       200:
- *         description: A specific planned downtime object.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *       404:
- *         description: Planned downtime not found.
- */
-router.get('/:id', (req, res) => {
-    let data = loadPlannedDowntime();
-    const id = req.params.id;
-    const downtime = data.find(d => d.ID === id);
-    if (downtime) {
-        const downtimeWithDuration = {
-            ...downtime,
-            durationInMinutes: calculateDurationInMinutes(downtime.Start, downtime.End)
-        };
-        res.json(downtimeWithDuration);
-    } else {
-        res.status(404).json({ message: 'Planned downtime not found' });
-    }
-});
-
-/**
- * @swagger
- * /planneddowntime:
- *   post:
- *     summary: Add a new planned downtime
- *     tags: [Planned Downtime]
- *     description: Create a new planned downtime.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               ID:
- *                 type: string
- *               description:
- *                 type: string
- *     responses:
- *       201:
- *         description: Planned downtime added successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- */
-router.post('/', (req, res) => {
-    const data = loadPlannedDowntime();
-    const newData = req.body;
-    data.push(newData);
-    savePlannedDowntime(data);
-    res.status(201).json({ message: 'Planned downtime added successfully' });
 });
 
 /**
  * @swagger
  * /planneddowntime/{id}:
  *   put:
- *     summary: Update an existing planned downtime
+ *     summary: Replace planned downtime by ID
  *     tags: [Planned Downtime]
- *     description: Update the details of an existing planned downtime.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The planned downtime ID.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             properties:
- *               description:
- *                 type: string
  *     responses:
  *       200:
  *         description: Planned downtime updated successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       404:
- *         description: Planned downtime not found.
  */
-router.put('/:id', (req, res) => {
-    const data = loadPlannedDowntime();
-    const id = req.params.id;
-    const updatedData = req.body;
-    const index = data.findIndex(item => item.ID === id);
-    if (index !== -1) {
-        data[index] = updatedData;
-        savePlannedDowntime(data);
-        res.status(200).json({ message: 'Planned downtime updated successfully' });
-    } else {
-        res.status(404).json({ message: 'Planned downtime not found' });
+router.put('/:order_id', async (req, res) => {
+    try {
+        const orderId = parseInt(req.params.order_id); // order_id aus URL
+        const newData = req.body; // Neuer vollständiger Datensatz
+
+        // Daten laden
+        let data = await loadPlannedDowntime();
+
+        // Eintrag mit passender order_id finden
+        const index = data.findIndex(item => item.order_id === orderId);
+
+        if (index !== -1) {
+            // Dauer automatisch berechnen, falls Start und End vorhanden sind
+            if (newData.Start && newData.End) {
+                newData.durationInMinutes = calculateDurationInMinutes(newData.Start, newData.End);
+            }
+
+            // Eintrag ersetzen
+            data[index] = { ...newData, order_id: orderId }; // order_id bleibt gleich
+
+            // Daten speichern
+            await savePlannedDowntime(data);
+
+            res.status(200).json({
+                message: 'Planned downtime updated successfully',
+                updatedData: data[index],
+            });
+        } else {
+            res.status(404).json({ message: 'Planned downtime not found' });
+        }
+    } catch (error) {
+        console.error('Error updating planned downtime:', error);
+        res.status(500).json({ message: 'An error occurred while updating planned downtime' });
     }
 });
+
 
 /**
  * @swagger
  * /planneddowntime/{id}:
  *   delete:
- *     summary: Delete a planned downtime
+ *     summary: Delete a planned downtime by ID
  *     tags: [Planned Downtime]
- *     description: Remove a planned downtime from the list.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The planned downtime ID.
  *     responses:
  *       200:
  *         description: Planned downtime deleted successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       404:
- *         description: Planned downtime not found.
  */
-router.delete('/:id', (req, res) => {
-    let data = loadPlannedDowntime();
-    const initialLength = data.length;
-    data = data.filter(item => item.ID !== req.params.id);
-    if (data.length !== initialLength) {
-        savePlannedDowntime(data);
-        res.status(200).json({ message: 'Planned downtime deleted successfully' });
-    } else {
-        res.status(404).json({ message: 'Planned downtime not found' });
+router.delete('/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        let data = await loadPlannedDowntime();
+        const initialLength = data.length;
+        data = data.filter(item => item.ID !== id);
+
+        if (data.length !== initialLength) {
+            await savePlannedDowntime(data);
+            res.status(200).json({ message: 'Planned downtime deleted successfully' });
+        } else {
+            res.status(404).json({ message: 'Planned downtime not found' });
+        }
+    } catch (error) {
+        console.error('Error deleting planned downtime:', error);
+        res.status(500).json({ message: 'An error occurred while deleting planned downtime' });
     }
 });
 
