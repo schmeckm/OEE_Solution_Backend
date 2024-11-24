@@ -6,8 +6,6 @@ const { check, validationResult } = require('express-validator');
 
 const { authenticateToken, authorizeRole } = require('../middlewares/auth');
 
-const { sendWelcomeEmail } = require('../utils/emailService');
-
 const router = express.Router();
 
 /**

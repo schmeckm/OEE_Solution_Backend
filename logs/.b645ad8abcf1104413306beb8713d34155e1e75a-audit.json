@@ -6,14 +6,9 @@
     "auditLog": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\.b645ad8abcf1104413306beb8713d34155e1e75a-audit.json",
     "files": [
         {
-            "date": 1732305157324,
-            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\exceptions-2024-11-22.log",
-            "hash": "68e7e719d6c4ee888185171bf2ab4ddde5c4632203fc63bdf59934eafcb42406"
-        },
-        {
-            "date": 1732316572019,
-            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\exceptions-2024-11-23.log",
-            "hash": "9ef87ad7fa19f4034f69c828bf79043fd93e919ad3710cecb57a63fcae5b9b4b"
+            "date": 1732449615727,
+            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\exceptions-2024-11-24.log",
+            "hash": "82a511fb7845492062abedd4d8006e17e477ec78c5e1942c4b236e5b72643235"
         }
     ],
     "hashType": "sha256"
