@@ -27,9 +27,31 @@ const router = express.Router();
  *               type: array
  *               items:
  *                 type: object
+ *                 properties:
+ *                   ID:
+ *                     type: string
+ *                     description: Unique identifier for the machine.
+ *                   Plant:
+ *                     type: string
+ *                     description: The plant location.
+ *                   area:
+ *                     type: string
+ *                     description: The area within the plant.
+ *                   machineGroup:
+ *                     type: string
+ *                     description: The machine group.
+ *                   name:
+ *                     type: string
+ *                     description: The name of the machine.
+ *                   description:
+ *                     type: string
+ *                     description: A description of the machine.
+ *                   OEE:
+ *                     type: boolean
+ *                     description: Whether OEE is enabled for the machine.
  */
 router.get('/', (req, res) => {
-    const machines = loadMachines(); // Load all machines from the service
+    const machines = loadMachines();
     res.json(machines);
 });
 
@@ -39,14 +61,14 @@ router.get('/', (req, res) => {
  *   get:
  *     summary: Get a specific machine
  *     tags: [Machines]
- *     description: Retrieve a single machine by ID.
+ *     description: Retrieve a single machine by its unique ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The machine ID.
+ *         description: The unique ID of the machine.
  *     responses:
  *       200:
  *         description: A machine object.
@@ -54,12 +76,34 @@ router.get('/', (req, res) => {
  *           application/json:
  *             schema:
  *               type: object
+ *               properties:
+ *                 ID:
+ *                   type: string
+ *                   description: Unique identifier for the machine.
+ *                 Plant:
+ *                   type: string
+ *                   description: The plant location.
+ *                 area:
+ *                   type: string
+ *                   description: The area within the plant.
+ *                 machineGroup:
+ *                   type: string
+ *                   description: The machine group.
+ *                 name:
+ *                   type: string
+ *                   description: The name of the machine.
+ *                 description:
+ *                   type: string
+ *                   description: A description of the machine.
+ *                 OEE:
+ *                   type: boolean
+ *                   description: Whether OEE is enabled for the machine.
  *       404:
  *         description: Machine not found.
  */
 router.get('/:id', (req, res) => {
     const machines = loadMachines();
-    const machine = machines.find((m) => m.machine_id === req.params.id);
+    const machine = machines.find((m) => m.ID === req.params.id);
     if (machine) {
         res.json(machine);
     } else {
@@ -73,7 +117,7 @@ router.get('/:id', (req, res) => {
  *   post:
  *     summary: Add a new machine
  *     tags: [Machines]
- *     description: Create a new machine.
+ *     description: Create a new machine with the provided details.
  *     requestBody:
  *       required: true
  *       content:
@@ -81,14 +125,24 @@ router.get('/:id', (req, res) => {
  *           schema:
  *             type: object
  *             properties:
+ *               Plant:
+ *                 type: string
+ *                 description: The plant location.
+ *               area:
+ *                 type: string
+ *                 description: The area within the plant.
+ *               machineGroup:
+ *                 type: string
+ *                 description: The machine group.
  *               name:
  *                 type: string
- *               type:
- *                 type: string
+ *                 description: The name of the machine.
  *               description:
  *                 type: string
+ *                 description: A description of the machine.
  *               OEE:
  *                 type: boolean
+ *                 description: Whether OEE is enabled for the machine.
  *     responses:
  *       201:
  *         description: Machine created successfully.
@@ -100,11 +154,11 @@ router.get('/:id', (req, res) => {
  *                 message:
  *                   type: string
  *                 machine:
- *                   type: object
+ *                   $ref: '#/components/schemas/Machine'
  */
 router.post('/', (req, res) => {
     const machines = loadMachines();
-    const newMachine = { ...req.body, machine_id: uuidv4() }; // Assign a unique ID
+    const newMachine = { ...req.body, ID: uuidv4() }; // Assign unique ID
     machines.push(newMachine);
     saveMachines(machines);
     res.status(201).json({ message: 'New machine added successfully', machine: newMachine });
@@ -116,14 +170,14 @@ router.post('/', (req, res) => {
  *   put:
  *     summary: Update an existing machine
  *     tags: [Machines]
- *     description: Update the details of an existing machine.
+ *     description: Update the details of an existing machine by its unique ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The machine ID.
+ *         description: The unique ID of the machine.
  *     requestBody:
  *       required: true
  *       content:
@@ -131,9 +185,13 @@ router.post('/', (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               name:
+ *               Plant:
  *                 type: string
- *               type:
+ *               area:
+ *                 type: string
+ *               machineGroup:
+ *                 type: string
+ *               name:
  *                 type: string
  *               description:
  *                 type: string
@@ -142,40 +200,19 @@ router.post('/', (req, res) => {
  *     responses:
  *       200:
  *         description: Machine updated successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 machine:
- *                   type: object
  *       404:
  *         description: Machine not found.
  */
 router.put('/:id', (req, res) => {
-    const machines = loadMachines(); // Load all machines
-    const id = req.params.id; // Extract the unique ID from the URL
-    console.log(`[DEBUG] Incoming ID for update: ${id}`);
-
-    // Locate the machine by its unique ID
+    const machines = loadMachines();
+    const id = req.params.id;
     const index = machines.findIndex((m) => m.ID === id);
-    console.log(`[DEBUG] Index found: ${index}`);
 
     if (index !== -1) {
-        // Merge existing machine data with updates from the request body
         machines[index] = { ...machines[index], ...req.body };
-
-        saveMachines(machines); // Save the updated list
-        console.log(`[DEBUG] Updated machine data:`, machines[index]);
-
-        res.status(200).json({
-            message: 'Machine updated successfully',
-            machine: machines[index],
-        });
+        saveMachines(machines);
+        res.status(200).json({ message: 'Machine updated successfully', machine: machines[index] });
     } else {
-        console.error(`[ERROR] Machine with ID ${id} not found`);
         res.status(404).json({ message: `Machine with ID ${id} not found` });
     }
 });
@@ -186,14 +223,14 @@ router.put('/:id', (req, res) => {
  *   delete:
  *     summary: Delete a machine
  *     tags: [Machines]
- *     description: Remove a machine from the list.
+ *     description: Remove a machine from the list by its unique ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The machine ID.
+ *         description: The unique ID of the machine.
  *     responses:
  *       200:
  *         description: Machine deleted successfully.
@@ -201,11 +238,11 @@ router.put('/:id', (req, res) => {
  *         description: Machine not found.
  */
 router.delete('/:id', (req, res) => {
-    let machines = loadMachines();
-    const initialLength = machines.length;
-    machines = machines.filter((m) => m.machine_id !== req.params.id);
-    if (machines.length !== initialLength) {
-        saveMachines(machines);
+    const machines = loadMachines();
+    const filteredMachines = machines.filter((m) => m.ID !== req.params.id);
+
+    if (filteredMachines.length < machines.length) {
+        saveMachines(filteredMachines);
         res.status(200).json({ message: 'Machine deleted successfully' });
     } else {
         res.status(404).json({ message: `Machine with ID ${req.params.id} not found` });

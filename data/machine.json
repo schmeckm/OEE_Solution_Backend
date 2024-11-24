@@ -1,4 +1,5 @@
-[{
+[
+    {
         "Plant": "Basel",
         "area": "Packaging",
         "machineGroup": "Blister",
@@ -6,7 +7,7 @@
         "name": "Falcon11",
         "description": "Description of Falcon11",
         "OEE": true,
-        "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd0"
+        "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd1"
     },
     {
         "Plant": "Basel",
@@ -16,7 +17,7 @@
         "name": "Falcon12",
         "description": "Description of Falcon12",
         "OEE": true,
-        "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd0"
+        "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd2"
     },
     {
         "Plant": "Basel",
@@ -26,6 +27,6 @@
         "name": "Falcon13",
         "description": "Description of Falcon13",
         "OEE": false,
-        "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd0"
+        "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd3"
     }
 ]
