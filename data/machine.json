@@ -5,7 +5,8 @@
         "machine_id": "1",
         "name": "Falcon11",
         "description": "Description of Falcon11",
-        "OEE": true
+        "OEE": true,
+        "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd0"
     },
     {
         "Plant": "Basel",
@@ -14,7 +15,8 @@
         "machine_id": "2",
         "name": "Falcon12",
         "description": "Description of Falcon12",
-        "OEE": true
+        "OEE": true,
+        "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd0"
     },
     {
         "Plant": "Basel",
@@ -23,6 +25,7 @@
         "machine_id": "3",
         "name": "Falcon13",
         "description": "Description of Falcon13",
-        "OEE": false
+        "OEE": false,
+        "ID": "67f39e6e-35bf-4162-961a-ee6d83f05bd0"
     }
 ]
