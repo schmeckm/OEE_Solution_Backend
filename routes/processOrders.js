@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { v4: uuidv4 } = require("uuid");
 const moment = require("moment-timezone");
 
 const {
@@ -149,7 +150,7 @@ router.get("/rel", (req, res) => {
  *             type: object
  *             properties:
  *               order_id:
- *                 type: integer
+ *                 type: string
  *               description:
  *                 type: string
  *     responses:
@@ -166,6 +167,9 @@ router.get("/rel", (req, res) => {
 router.post("/", (req, res) => {
   const data = loadProcessOrders();
   const newData = req.body;
+
+  // Generate a new UUID for order_id
+  newData.order_id = uuidv4();
 
   // Format all date fields before saving
   newData.Start = moment(newData.Start)
@@ -204,8 +208,8 @@ router.post("/", (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
- *         description: The process order ID.
+ *           type: string
+ *         description: The process order UUID (order_id).
  *     requestBody:
  *       required: true
  *       content:
@@ -230,7 +234,7 @@ router.post("/", (req, res) => {
  */
 router.put("/:id", (req, res) => {
   const data = loadProcessOrders();
-  const id = parseInt(req.params.id);
+  const id = req.params.id; // UUID from the URL parameter
   const updatedData = req.body;
   const index = data.findIndex((item) => item.order_id === id);
 
@@ -279,24 +283,17 @@ router.put("/:id", (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
- *         description: The process order ID.
+ *           type: string
+ *         description: The process order UUID (order_id).
  *     responses:
  *       200:
  *         description: Process order deleted successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
  *       404:
  *         description: Process order not found.
  */
 router.delete("/:id", (req, res) => {
   const data = loadProcessOrders();
-  const id = parseInt(req.params.id);
+  const id = req.params.id; // UUID from the URL parameter
   const newData = data.filter((item) => item.order_id !== id);
 
   if (data.length !== newData.length) {

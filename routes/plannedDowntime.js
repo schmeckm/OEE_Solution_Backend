@@ -50,52 +50,16 @@ function validateDowntime(downtime) {
  */
 router.get("/", async (req, res) => {
     try {
+        console.log("[DEBUG] Fetching all planned downtimes...");
         let data = await loadPlannedDowntime();
         data = data.map((downtime) => ({
             ...downtime,
             durationInMinutes: calculateDurationInMinutes(downtime.Start, downtime.End),
         }));
+        console.log("[DEBUG] Retrieved planned downtimes:", data);
         res.json(data);
     } catch (error) {
-        res.status(500).json({ message: "Error loading planned downtimes" });
-    }
-});
-
-/**
- * @swagger
- * /planneddowntime/processorder/{processOrderNumber}:
- *   get:
- *     summary: Retrieve planned downtimes by process order number
- *     tags: [Planned Downtime]
- *     parameters:
- *       - in: path
- *         name: processOrderNumber
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Planned downtimes for the specified process order number
- *       404:
- *         description: No planned downtimes found for the specified process order number
- */
-router.get("/processorder/:processOrderNumber", async (req, res) => {
-    try {
-        const processOrderNumber = req.params.processOrderNumber;
-        const data = await loadPlannedDowntime();
-
-        const filteredData = data.filter(
-            (downtime) => downtime.ProcessOrderNumber?.toString() === processOrderNumber.toString()
-        );
-
-        if (filteredData.length > 0) {
-            res.json(filteredData);
-        } else {
-            res.status(404).json({
-                message: "No planned downtime found for the specified process order number",
-            });
-        }
-    } catch (error) {
+        console.error("[ERROR] Failed to fetch planned downtimes:", error.message);
         res.status(500).json({ message: "Error loading planned downtimes" });
     }
 });
@@ -115,16 +79,12 @@ router.get("/processorder/:processOrderNumber", async (req, res) => {
  *             properties:
  *               Start:
  *                 type: string
- *                 example: "2024-11-24T10:00:00.000Z"
  *               End:
  *                 type: string
- *                 example: "2024-11-24T12:00:00.000Z"
  *               ProcessOrderNumber:
  *                 type: string
- *                 example: "12345"
  *               machine_id:
  *                 type: string
- *                 example: "4"
  *     responses:
  *       201:
  *         description: Planned downtime added successfully
@@ -133,13 +93,26 @@ router.get("/processorder/:processOrderNumber", async (req, res) => {
  */
 router.post("/", async (req, res) => {
     try {
+        console.log("[DEBUG] Adding new planned downtime...");
         const data = await loadPlannedDowntime();
+
         const newData = { ...req.body, ID: uuidv4() };
         validateDowntime(newData);
+
+        // Calculate duration in minutes
+        newData.durationInMinutes = calculateDurationInMinutes(newData.Start, newData.End);
+
         data.push(newData);
         await savePlannedDowntime(data);
-        res.status(201).json({ message: "Planned downtime added successfully", ID: newData.ID });
+
+        console.log("[DEBUG] New planned downtime added:", newData);
+        res.status(201).json({
+            message: "Planned downtime added successfully",
+            ID: newData.ID,
+            durationInMinutes: newData.durationInMinutes,
+        });
     } catch (error) {
+        console.error("[ERROR] Failed to add planned downtime:", error.message);
         res.status(400).json({ message: error.message });
     }
 });
@@ -180,21 +153,28 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
     try {
         const id = req.params.id;
-        console.log("[DEBUG] Incoming ID for update:", id);
-        console.log("[DEBUG] Payload:", req.body);
+        console.log("[DEBUG] Updating planned downtime with ID:", id);
+        console.log("[DEBUG] Incoming Payload:", req.body);
 
         const data = await loadPlannedDowntime();
         const index = data.findIndex((item) => item.ID && item.ID.toString() === id.toString());
-        console.log("[DEBUG] Index found:", index);
 
         if (index !== -1) {
             const updatedData = { ...data[index], ...req.body, ID: id };
-            console.log("[DEBUG] Updated data:", updatedData);
+
+            // Recalculate duration in minutes
+            updatedData.durationInMinutes = calculateDurationInMinutes(updatedData.Start, updatedData.End);
 
             data[index] = updatedData;
             await savePlannedDowntime(data);
-            res.status(200).json({ message: "Planned downtime updated successfully", updatedData });
+
+            console.log("[DEBUG] Updated planned downtime:", updatedData);
+            res.status(200).json({
+                message: "Planned downtime updated successfully",
+                updatedData,
+            });
         } else {
+            console.error("[ERROR] Planned downtime not found for ID:", id);
             res.status(404).json({ message: "Planned downtime not found" });
         }
     } catch (error) {
@@ -202,7 +182,6 @@ router.put("/:id", async (req, res) => {
         res.status(500).json({ message: "Error updating planned downtime" });
     }
 });
-
 
 /**
  * @swagger
@@ -225,16 +204,17 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
     try {
         const id = req.params.id;
-        console.log("[DEBUG] Incoming ID for delete:", id);
+        console.log("[DEBUG] Deleting planned downtime with ID:", id);
 
         const data = await loadPlannedDowntime();
         const filteredData = data.filter((item) => item.ID && item.ID.toString() !== id.toString());
-        console.log("[DEBUG] Filtered data length:", filteredData.length);
 
         if (filteredData.length < data.length) {
             await savePlannedDowntime(filteredData);
+            console.log("[DEBUG] Remaining planned downtimes:", filteredData);
             res.status(200).json({ message: "Planned downtime deleted successfully" });
         } else {
+            console.error("[ERROR] Planned downtime not found for ID:", id);
             res.status(404).json({ message: "Planned downtime not found" });
         }
     } catch (error) {
