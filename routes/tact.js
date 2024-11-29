@@ -1,8 +1,9 @@
-const express = require('express'); // Import the express module
-const path = require('path'); // Import the path module
-const fs = require('fs').promises; // Import the fs module with promises API
-const { param, body, validationResult } = require('express-validator'); // Import validation functions
-const router = express.Router(); // Create a new router object
+const express = require('express');
+const path = require('path');
+const fs = require('fs').promises;
+const { param, body, validationResult } = require('express-validator');
+const { v4: uuidv4 } = require('uuid'); // Import UUID
+const router = express.Router();
 
 const configPath = path.join(__dirname, '../data/tact.json');
 
@@ -49,7 +50,7 @@ async function saveTactData(data) {
  *               items:
  *                 type: object
  */
-router.get('/', async(req, res) => {
+router.get('/', async (req, res) => {
     try {
         const tactData = await loadTactData(); // Load all tact data
         res.json(tactData);
@@ -69,15 +70,15 @@ router.get('/', async(req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: number
- *         description: The tact ID.
+ *           type: string
+ *         description: The tact ID (UUID).
  *     responses:
  *       200:
  *         description: A tact entry object.
  *       404:
  *         description: Tact entry not found.
  */
-router.get('/:id', param('id').isInt(), async(req, res) => {
+router.get('/:id', param('id').isUUID(), async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -85,7 +86,7 @@ router.get('/:id', param('id').isInt(), async(req, res) => {
 
     try {
         const tactData = await loadTactData();
-        const tact = tactData.find(t => t.id === parseInt(req.params.id));
+        const tact = tactData.find(t => t.id === req.params.id);
 
         if (tact) {
             res.json(tact);
@@ -128,7 +129,7 @@ router.post(
     body('material').notEmpty(),
     body('sollMax').isNumeric(),
     body('sollMin').isNumeric(),
-    async(req, res) => {
+    async (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({ errors: errors.array() });
@@ -137,7 +138,7 @@ router.post(
         try {
             const tactData = await loadTactData();
             const newTact = {
-                id: tactData.length ? Math.max(...tactData.map(t => t.id)) + 1 : 1,
+                id: uuidv4(), // Generate UUID for new tact entry
                 machine: req.body.machine,
                 material: req.body.material,
                 sollMax: req.body.sollMax,
@@ -164,7 +165,8 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: number
+ *           type: string
+ *         description: The tact ID (UUID).
  *     requestBody:
  *       required: true
  *       content:
@@ -184,7 +186,7 @@ router.post(
  *       200:
  *         description: Tact entry updated successfully.
  */
-router.put('/:id', param('id').isInt(), async(req, res) => {
+router.put('/:id', param('id').isUUID(), async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -192,10 +194,10 @@ router.put('/:id', param('id').isInt(), async(req, res) => {
 
     try {
         const tactData = await loadTactData();
-        const index = tactData.findIndex(t => t.id === parseInt(req.params.id));
+        const index = tactData.findIndex(t => t.id === req.params.id);
 
         if (index !== -1) {
-            tactData[index] = {...tactData[index], ...req.body };
+            tactData[index] = { ...tactData[index], ...req.body };
             await saveTactData(tactData);
             res.status(200).json({ message: 'Tact entry updated successfully', tact: tactData[index] });
         } else {
@@ -217,12 +219,13 @@ router.put('/:id', param('id').isInt(), async(req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: number
+ *           type: string
+ *         description: The tact ID (UUID).
  *     responses:
  *       200:
  *         description: Tact entry deleted successfully.
  */
-router.delete('/:id', param('id').isInt(), async(req, res) => {
+router.delete('/:id', param('id').isUUID(), async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -231,7 +234,7 @@ router.delete('/:id', param('id').isInt(), async(req, res) => {
     try {
         let tactData = await loadTactData();
         const initialLength = tactData.length;
-        tactData = tactData.filter(t => t.id !== parseInt(req.params.id));
+        tactData = tactData.filter(t => t.id !== req.params.id);
 
         if (tactData.length !== initialLength) {
             await saveTactData(tactData);

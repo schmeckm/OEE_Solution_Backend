@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');  // UUID Generator für Ratings ID
 
 const router = express.Router();
 const configPath = path.join(__dirname, '../config/config.json');
@@ -61,7 +62,7 @@ router.get('/', (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string   // UUID ist jetzt string
  *         description: The rating ID.
  *     responses:
  *       200:
@@ -75,7 +76,7 @@ router.get('/', (req, res) => {
  */
 router.get('/:id', (req, res) => {
     const config = loadConfig();
-    const ratingId = parseInt(req.params.id, 10);
+    const ratingId = req.params.id; // UUID als String
     const rating = config.ratings.find(r => r.id === ratingId);
 
     if (rating) {
@@ -99,8 +100,6 @@ router.get('/:id', (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               id:
- *                 type: integer
  *               description:
  *                 type: string
  *               color:
@@ -116,8 +115,14 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
     const config = loadConfig();
     const newRating = req.body;
+
+    // Generiere eine neue UUID für das Rating
+    newRating.id = uuidv4();
+
+    // Fügt das neue Rating hinzu
     config.ratings.push(newRating);
     saveConfig(config);
+
     res.status(201).json({ message: 'Rating created successfully', rating: newRating });
 });
 
@@ -133,7 +138,7 @@ router.post('/', (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string   // UUID ist jetzt string
  *         description: The rating ID.
  *     requestBody:
  *       required: true
@@ -158,12 +163,12 @@ router.post('/', (req, res) => {
  */
 router.put('/:id', (req, res) => {
     const config = loadConfig();
-    const ratingId = parseInt(req.params.id, 10);
+    const ratingId = req.params.id; // UUID als String
     const updatedRating = req.body;
     const index = config.ratings.findIndex(r => r.id === ratingId);
 
     if (index !== -1) {
-        config.ratings[index] = {...config.ratings[index], ...updatedRating };
+        config.ratings[index] = { ...config.ratings[index], ...updatedRating };
         saveConfig(config);
         res.status(200).json({ message: 'Rating updated successfully', rating: config.ratings[index] });
     } else {
@@ -183,7 +188,7 @@ router.put('/:id', (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string   // UUID ist jetzt string
  *         description: The rating ID.
  *     responses:
  *       200:
@@ -193,8 +198,10 @@ router.put('/:id', (req, res) => {
  */
 router.delete('/:id', (req, res) => {
     const config = loadConfig();
-    const ratingId = parseInt(req.params.id, 10);
+    const ratingId = req.params.id; // UUID als String
     const initialLength = config.ratings.length;
+
+    // Filtert das Rating mit der angegebenen ID heraus
     config.ratings = config.ratings.filter(r => r.id !== ratingId);
 
     if (config.ratings.length !== initialLength) {

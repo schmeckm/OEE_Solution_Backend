@@ -1,12 +1,13 @@
-[{
-        "id": 1,
+[
+    {
+        "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
         "machine": "Machine 1",
         "material": "1019293",
         "sollMax": 100,
         "sollMin": 50
     },
     {
-        "id": 2,
+        "id": "3e3d4b98-39f3-465f-8f56-c6e77b9d169f",
         "machine": "Machine 2",
         "material": "1019293",
         "sollMax": 120,

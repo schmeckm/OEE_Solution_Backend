@@ -1,4 +1,5 @@
 const express = require('express');
+const { v4: uuidv4 } = require('uuid');  // Importiere UUID-Bibliothek
 const { loadShiftModels, saveShiftModels, loadShiftModelsByMachineId } = require('../services/shiftModelService'); // Import Shift model service
 
 const router = express.Router();
@@ -44,7 +45,7 @@ router.get('/', (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string  // ID ist jetzt eine UUID
  *         description: The shift model ID.
  *     responses:
  *       200:
@@ -58,7 +59,7 @@ router.get('/', (req, res) => {
  */
 router.get('/:id', (req, res) => {
     const shiftModels = loadShiftModels();
-    const shiftModel = shiftModels.find(sm => sm.shift_id === parseInt(req.params.id));
+    const shiftModel = shiftModels.find(sm => sm.shift_id === req.params.id);
     if (shiftModel) {
         res.json(shiftModel);
     } else {
@@ -137,7 +138,7 @@ router.get('/machine/:machine_id', (req, res) => {
 router.post('/', (req, res) => {
     const shiftModels = loadShiftModels();
     const newShiftModel = req.body;
-    newShiftModel.shift_id = shiftModels.length ? Math.max(...shiftModels.map(sm => sm.shift_id)) + 1 : 1;
+    newShiftModel.shift_id = uuidv4();  // Erstelle eine UUID für das neue Shift Model
     shiftModels.push(newShiftModel);
     saveShiftModels(shiftModels);
     res.status(201).json({ message: 'New shift model added successfully', shiftModel: newShiftModel });
@@ -155,7 +156,7 @@ router.post('/', (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string  // ID ist jetzt eine UUID
  *         description: The shift model ID.
  *     requestBody:
  *       required: true
@@ -185,7 +186,7 @@ router.post('/', (req, res) => {
  */
 router.put('/:id', (req, res) => {
     const shiftModels = loadShiftModels();
-    const index = shiftModels.findIndex(sm => sm.shift_id === parseInt(req.params.id));
+    const index = shiftModels.findIndex(sm => sm.shift_id === req.params.id);
     if (index !== -1) {
         shiftModels[index] = {...shiftModels[index], ...req.body };
         saveShiftModels(shiftModels);
@@ -207,7 +208,7 @@ router.put('/:id', (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string  // ID ist jetzt eine UUID
  *         description: The shift model ID.
  *     responses:
  *       200:
@@ -225,7 +226,7 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', (req, res) => {
     let shiftModels = loadShiftModels();
     const initialLength = shiftModels.length;
-    shiftModels = shiftModels.filter(sm => sm.shift_id !== parseInt(req.params.id));
+    shiftModels = shiftModels.filter(sm => sm.shift_id !== req.params.id);
     if (shiftModels.length !== initialLength) {
         saveShiftModels(shiftModels);
         res.status(200).json({ message: 'Shift model deleted successfully' });

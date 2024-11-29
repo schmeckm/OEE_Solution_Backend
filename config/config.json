@@ -47,10 +47,10 @@
         "password": "loris2023"
     },
     "ratings": [
-        { "id": 1, "description": "Maintenance", "color": "orange" },
-        { "id": 2, "description": "Operator Error", "color": "red" },
-        { "id": 3, "description": "Machine Fault", "color": "blue" },
-        { "id": 4, "description": "Unknown", "color": "gray" },
-        { "id": 5, "description": "IT-OT", "color": "green" }
+        { "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479", "description": "Maintenance", "color": "orange" },
+        { "id": "3e3d4b98-39f3-465f-8f56-c6e77b9d169f", "description": "Operator Error", "color": "red" },
+        { "id": "7b9d03f2-b3bc-4fa4-b6e4-cbb89f1b801b", "description": "Machine Fault", "color": "blue" },
+        { "id": "9c50f72c-d4e6-47b0-a1e3-8c77b94f99cb", "description": "Unknown", "color": "gray" },
+        { "id": "6e7095ba-ec79-44ef-9142-f2f5d1e990be", "description": "IT-OT", "color": "green" }
     ]
 }
