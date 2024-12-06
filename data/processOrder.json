@@ -1,10 +1,10 @@
-[{
-        "order_id": 1,
+[
+    {
         "ProcessOrderNumber": "47111",
         "MaterialNumber": "1019293",
         "MaterialDescription": "Aspirin",
-        "Start": "2024-07-14T04:15:13.507Z",
-        "End": "2024-07-14T20:15:18.427Z",
+        "Start": "2024-07-14T06:15:13+02:00",
+        "End": "2024-07-14T22:15:18+02:00",
         "setupTime": 45,
         "processingTime": 100,
         "teardownTime": 20,
@@ -12,17 +12,20 @@
         "ConfirmedProductionYield": 780,
         "ConfirmedProductionQuantity": 800,
         "TargetPerformance": 100,
-        "machine_id": "1",
+        "machine_id": "67f39e6e-35bf-4162-961a-ee6d83f05bd2",
         "ProcessOrderStatus": "REL",
-        "ActualProcessOrderStart": "2024-07-14T06:22:58.174Z"
+        "ActualProcessOrderStart": "2024-07-14T08:22:58+02:00",
+        "udid": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        "ActualProcessOrderEnd": null,
+        "machineName": "Falcon13",
+        "order_id": "bf912152-255b-4eff-863c-de3cf2c83ed5"
     },
     {
-        "order_id": 2,
         "ProcessOrderNumber": "47112",
         "MaterialNumber": "1019293",
         "MaterialDescription": "Another Medicine",
-        "Start": "2024-07-14T04:15:13.507Z",
-        "End": "2024-07-14T20:15:18.427Z",
+        "Start": "2024-07-14T06:15:13+02:00",
+        "End": "2024-07-14T22:15:18+02:00",
         "setupTime": 45,
         "processingTime": 90,
         "teardownTime": 20,
@@ -30,8 +33,12 @@
         "ConfirmedProductionYield": 780,
         "ConfirmedProductionQuantity": 800,
         "TargetPerformance": 100,
-        "machine_id": "2",
+        "machine_id": "67f39e6e-35bf-4162-961a-ee6d83f05bd1",
         "ProcessOrderStatus": "REL",
-        "ActualProcessOrderStart": "2024-07-14T06:22:58.174Z"
+        "ActualProcessOrderStart": "2024-07-14T08:22:58+02:00",
+        "udid": "3e3d4b98-39f3-465f-8f56-c6e77b9d169f",
+        "ActualProcessOrderEnd": null,
+        "machineName": "Falcon13",
+        "order_id": "95e6b1d5-01c3-4837-a15b-483ef7c3980a"
     }
 ]
