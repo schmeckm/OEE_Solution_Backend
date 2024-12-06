@@ -1,238 +1,328 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');  // Importiere UUID-Bibliothek
-const { loadShiftModels, saveShiftModels, loadShiftModelsByMachineId } = require('../services/shiftModelService'); // Import Shift model service
+const { v4: uuidv4 } = require('uuid');
+const Joi = require('joi');
+const sanitizeHtml = require('sanitize-html');
+
+const {
+  loadShiftModels,
+  saveShiftModels,
+  loadShiftModelsByMachineId,
+} = require('../services/shiftModelService');
 
 const router = express.Router();
+
+// Zentralisiertes Fehlerhandling
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+// Eingabevalidierung und -säuberung
+const validateAndSanitizeShiftModel = (data) => {
+  const schema = Joi.object({
+    name: Joi.string().required(),
+    description: Joi.string().optional().allow(''),
+    machine_id: Joi.string().required(), // Passen Sie dies an Ihr Datenmodell an
+    // Weitere Felder nach Bedarf hinzufügen
+  });
+
+  const { error, value } = schema.validate(data);
+
+  if (error) {
+    throw new Error(error.details[0].message);
+  }
+
+  // Eingaben säubern
+  value.name = sanitizeHtml(value.name);
+  if (value.description) {
+    value.description = sanitizeHtml(value.description);
+  }
+  value.machine_id = sanitizeHtml(value.machine_id);
+
+  return value;
+};
 
 /**
  * @swagger
  * tags:
  *   name: Shift Models
- *   description: API for managing shift models
+ *   description: API zur Verwaltung von Schichtmodellen
  */
 
 /**
  * @swagger
  * /shiftmodels:
  *   get:
- *     summary: Get all shift models
+ *     summary: Alle Schichtmodelle abrufen
  *     tags: [Shift Models]
- *     description: Retrieve a list of all shift models.
+ *     description: Ruft eine Liste aller Schichtmodelle ab.
  *     responses:
  *       200:
- *         description: A list of shift models.
+ *         description: Eine Liste von Schichtmodellen.
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 type: object
+ *                 $ref: '#/components/schemas/ShiftModel'
  */
-router.get('/', (req, res) => {
-    const shiftModels = loadShiftModels();
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const shiftModels = await loadShiftModels();
     res.json(shiftModels);
-});
+  })
+);
 
 /**
  * @swagger
  * /shiftmodels/{id}:
  *   get:
- *     summary: Get a specific shift model
+ *     summary: Ein bestimmtes Schichtmodell abrufen
  *     tags: [Shift Models]
- *     description: Retrieve a single shift model by ID.
+ *     description: Ruft ein einzelnes Schichtmodell anhand der ID ab.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
- *           type: string  // ID ist jetzt eine UUID
- *         description: The shift model ID.
+ *           type: string  // ID ist eine UUID
+ *         description: Die Schichtmodell-ID.
  *     responses:
  *       200:
- *         description: A specific shift model object.
+ *         description: Ein Schichtmodell-Objekt.
  *         content:
  *           application/json:
  *             schema:
- *               type: object
+ *               $ref: '#/components/schemas/ShiftModel'
+ *       400:
+ *         description: Ungültige ID.
  *       404:
- *         description: Shift model not found.
+ *         description: Schichtmodell nicht gefunden.
  */
-router.get('/:id', (req, res) => {
-    const shiftModels = loadShiftModels();
-    const shiftModel = shiftModels.find(sm => sm.shift_id === req.params.id);
-    if (shiftModel) {
-        res.json(shiftModel);
-    } else {
-        res.status(404).json({ message: `Shift model with ID ${req.params.id} not found` });
+router.get(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const id = sanitizeHtml(req.params.id);
+
+    // Validierung der ID
+    const idSchema = Joi.string().uuid().required();
+    const { error } = idSchema.validate(id);
+    if (error) {
+      return res.status(400).json({ message: 'Ungültige ID' });
     }
-});
+
+    const shiftModels = await loadShiftModels();
+    const shiftModel = shiftModels.find((sm) => sm.shift_id === id);
+    if (shiftModel) {
+      res.json(shiftModel);
+    } else {
+      res.status(404).json({ message: `Schichtmodell mit ID ${id} nicht gefunden` });
+    }
+  })
+);
 
 /**
  * @swagger
  * /shiftmodels/machine/{machine_id}:
  *   get:
- *     summary: Get shift models by machine ID
+ *     summary: Schichtmodelle nach Maschinen-ID abrufen
  *     tags: [Shift Models]
- *     description: Retrieve shift models associated with a specific machine ID.
+ *     description: Ruft Schichtmodelle ab, die mit einer bestimmten Maschinen-ID verknüpft sind.
  *     parameters:
  *       - in: path
  *         name: machine_id
  *         required: true
  *         schema:
  *           type: string
- *         description: The machine ID to filter shift models by.
+ *         description: Die Maschinen-ID zur Filterung der Schichtmodelle.
  *     responses:
  *       200:
- *         description: A list of shift models associated with the machine ID.
+ *         description: Eine Liste von Schichtmodellen, die mit der Maschinen-ID verknüpft sind.
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 type: object
+ *                 $ref: '#/components/schemas/ShiftModel'
+ *       400:
+ *         description: Ungültige Maschinen-ID.
  *       404:
- *         description: No shift models found for the given machine ID.
+ *         description: Keine Schichtmodelle für die gegebene Maschinen-ID gefunden.
  */
-router.get('/machine/:machine_id', (req, res) => {
-    const machineId = req.params.machine_id;
-    const shiftModels = loadShiftModelsByMachineId(machineId);
+router.get(
+  '/machine/:machine_id',
+  asyncHandler(async (req, res) => {
+    const machineId = sanitizeHtml(req.params.machine_id);
+
+    // Validierung der Maschinen-ID
+    const machineIdSchema = Joi.string().required();
+    const { error } = machineIdSchema.validate(machineId);
+    if (error) {
+      return res.status(400).json({ message: 'Ungültige Maschinen-ID' });
+    }
+
+    const shiftModels = await loadShiftModelsByMachineId(machineId);
 
     if (shiftModels.length > 0) {
-        res.json(shiftModels);
+      res.json(shiftModels);
     } else {
-        res.status(404).json({ message: `No shift models found for machine ID ${machineId}` });
+      res.status(404).json({ message: `Keine Schichtmodelle für Maschinen-ID ${machineId} gefunden` });
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /shiftmodels:
  *   post:
- *     summary: Add a new shift model
+ *     summary: Ein neues Schichtmodell hinzufügen
  *     tags: [Shift Models]
- *     description: Create a new shift model.
+ *     description: Erstellt ein neues Schichtmodell.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               description:
- *                 type: string
+ *             $ref: '#/components/schemas/ShiftModelInput'
  *     responses:
  *       201:
- *         description: Shift model added successfully.
+ *         description: Schichtmodell erfolgreich hinzugefügt.
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 shiftModel:
- *                   type: object
+ *               $ref: '#/components/schemas/ShiftModel'
+ *       400:
+ *         description: Ungültige Eingabedaten.
  */
-router.post('/', (req, res) => {
-    const shiftModels = loadShiftModels();
-    const newShiftModel = req.body;
-    newShiftModel.shift_id = uuidv4();  // Erstelle eine UUID für das neue Shift Model
-    shiftModels.push(newShiftModel);
-    saveShiftModels(shiftModels);
-    res.status(201).json({ message: 'New shift model added successfully', shiftModel: newShiftModel });
-});
+router.post(
+  '/',
+  asyncHandler(async (req, res) => {
+    try {
+      const shiftModels = await loadShiftModels();
+      const sanitizedData = validateAndSanitizeShiftModel(req.body);
+
+      // Neue UUID generieren
+      sanitizedData.shift_id = uuidv4();
+
+      shiftModels.push(sanitizedData);
+      await saveShiftModels(shiftModels);
+      res.status(201).json(sanitizedData);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  })
+);
 
 /**
  * @swagger
  * /shiftmodels/{id}:
  *   put:
- *     summary: Update an existing shift model
+ *     summary: Ein bestehendes Schichtmodell aktualisieren
  *     tags: [Shift Models]
- *     description: Update the details of an existing shift model.
+ *     description: Aktualisiert die Details eines bestehenden Schichtmodells.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
- *           type: string  // ID ist jetzt eine UUID
- *         description: The shift model ID.
+ *           type: string  // ID ist eine UUID
+ *         description: Die Schichtmodell-ID.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               description:
- *                 type: string
+ *             $ref: '#/components/schemas/ShiftModelInput'
  *     responses:
  *       200:
- *         description: Shift model updated successfully.
+ *         description: Schichtmodell erfolgreich aktualisiert.
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 shiftModel:
- *                   type: object
+ *               $ref: '#/components/schemas/ShiftModel'
+ *       400:
+ *         description: Ungültige Eingabedaten oder ID.
  *       404:
- *         description: Shift model not found.
+ *         description: Schichtmodell nicht gefunden.
  */
-router.put('/:id', (req, res) => {
-    const shiftModels = loadShiftModels();
-    const index = shiftModels.findIndex(sm => sm.shift_id === req.params.id);
-    if (index !== -1) {
-        shiftModels[index] = {...shiftModels[index], ...req.body };
-        saveShiftModels(shiftModels);
-        res.status(200).json({ message: 'Shift model updated successfully', shiftModel: shiftModels[index] });
-    } else {
-        res.status(404).json({ message: `Shift model with ID ${req.params.id} not found` });
+router.put(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    try {
+      const id = sanitizeHtml(req.params.id);
+
+      // Validierung der ID
+      const idSchema = Joi.string().uuid().required();
+      const { error: idError } = idSchema.validate(id);
+      if (idError) {
+        return res.status(400).json({ message: 'Ungültige ID' });
+      }
+
+      const shiftModels = await loadShiftModels();
+      const index = shiftModels.findIndex((sm) => sm.shift_id === id);
+      if (index !== -1) {
+        const sanitizedData = validateAndSanitizeShiftModel(req.body);
+        sanitizedData.shift_id = id; // Originale ID beibehalten
+
+        shiftModels[index] = { ...shiftModels[index], ...sanitizedData };
+        await saveShiftModels(shiftModels);
+        res.status(200).json(shiftModels[index]);
+      } else {
+        res.status(404).json({ message: `Schichtmodell mit ID ${id} nicht gefunden` });
+      }
+    } catch (error) {
+      res.status(400).json({ message: error.message });
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /shiftmodels/{id}:
  *   delete:
- *     summary: Delete a shift model
+ *     summary: Ein Schichtmodell löschen
  *     tags: [Shift Models]
- *     description: Remove a shift model from the list.
+ *     description: Entfernt ein Schichtmodell aus der Liste.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
- *           type: string  // ID ist jetzt eine UUID
- *         description: The shift model ID.
+ *           type: string  // ID ist eine UUID
+ *         description: Die Schichtmodell-ID.
  *     responses:
- *       200:
- *         description: Shift model deleted successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
+ *       204:
+ *         description: Schichtmodell erfolgreich gelöscht.
+ *       400:
+ *         description: Ungültige ID.
  *       404:
- *         description: Shift model not found.
+ *         description: Schichtmodell nicht gefunden.
  */
-router.delete('/:id', (req, res) => {
-    let shiftModels = loadShiftModels();
-    const initialLength = shiftModels.length;
-    shiftModels = shiftModels.filter(sm => sm.shift_id !== req.params.id);
-    if (shiftModels.length !== initialLength) {
-        saveShiftModels(shiftModels);
-        res.status(200).json({ message: 'Shift model deleted successfully' });
-    } else {
-        res.status(404).json({ message: `Shift model with ID ${req.params.id} not found` });
+router.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    try {
+      const id = sanitizeHtml(req.params.id);
+
+      // Validierung der ID
+      const idSchema = Joi.string().uuid().required();
+      const { error } = idSchema.validate(id);
+      if (error) {
+        return res.status(400).json({ message: 'Ungültige ID' });
+      }
+
+      let shiftModels = await loadShiftModels();
+      const initialLength = shiftModels.length;
+      shiftModels = shiftModels.filter((sm) => sm.shift_id !== id);
+      if (shiftModels.length !== initialLength) {
+        await saveShiftModels(shiftModels);
+        res.status(204).send();
+      } else {
+        res.status(404).json({ message: `Schichtmodell mit ID ${id} nicht gefunden` });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
     }
-});
+  })
+);
 
 module.exports = router;

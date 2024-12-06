@@ -1,128 +1,185 @@
 const express = require('express');
+const Joi = require('joi');
+const sanitizeHtml = require('sanitize-html');
+
 const { loadEnvConfig, saveEnvConfig } = require('../services/settingsService');
 
 const router = express.Router();
+
+// Zentralisiertes Fehlerhandling
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+// Eingabevalidierung und -säuberung
+const validateAndSanitizeEnvConfig = (data) => {
+  const schema = Joi.object().pattern(Joi.string(), Joi.string().allow(''));
+
+  const { error, value } = schema.validate(data);
+
+  if (error) {
+    throw new Error(`Ungültige Konfigurationsdaten: ${error.details[0].message}`);
+  }
+
+  // Eingaben säubern
+  const sanitizedData = {};
+  for (const [key, val] of Object.entries(value)) {
+    const sanitizedKey = sanitizeHtml(key);
+    const sanitizedValue = sanitizeHtml(val);
+    sanitizedData[sanitizedKey] = sanitizedValue;
+  }
+
+  return sanitizedData;
+};
+
+const validateAndSanitizeKey = (key) => {
+  const schema = Joi.string().required();
+  const { error, value } = schema.validate(key);
+
+  if (error) {
+    throw new Error(`Ungültiger Schlüssel: ${error.details[0].message}`);
+  }
+
+  return sanitizeHtml(value);
+};
 
 /**
  * @swagger
  * tags:
  *   name: Environment Configuration
- *   description: API for managing environment configuration settings
+ *   description: API zur Verwaltung von Umgebungs-Konfigurationseinstellungen
  */
 
 /**
  * @swagger
  * /settings/env:
  *   get:
- *     summary: Get the entire environment configuration
+ *     summary: Gesamte Umgebungs-Konfiguration abrufen
  *     tags: [Environment Configuration]
- *     description: Retrieve all the settings from the `.env` file.
+ *     description: Ruft alle Einstellungen aus der `.env`-Datei ab.
  *     responses:
  *       200:
- *         description: A list of all environment settings.
+ *         description: Eine Liste aller Umgebungs-Einstellungen.
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  */
-router.get('/env', (req, res) => {
+router.get(
+  '/env',
+  asyncHandler(async (req, res) => {
     try {
-        const envConfig = loadEnvConfig(); // Load the current environment configuration
-        res.json(envConfig); // Return the configuration as JSON
+      const envConfig = await loadEnvConfig();
+      res.json(envConfig);
     } catch (error) {
-        res.status(500).json({ message: error.message }); // Return an error if something goes wrong
+      res.status(500).json({ message: 'Fehler beim Laden der Umgebungs-Konfiguration' });
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /settings/env:
  *   put:
- *     summary: Update the entire environment configuration
+ *     summary: Gesamte Umgebungs-Konfiguration aktualisieren
  *     tags: [Environment Configuration]
- *     description: Update all settings in the `.env` file.
+ *     description: Aktualisiert alle Einstellungen in der `.env`-Datei.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             description: The updated configuration values.
+ *             description: Die aktualisierten Konfigurationswerte.
  *     responses:
  *       200:
- *         description: Environment configuration updated successfully.
+ *         description: Umgebungs-Konfiguration erfolgreich aktualisiert.
+ *       400:
+ *         description: Ungültige Konfigurationsdaten.
  *       500:
- *         description: Internal server error.
+ *         description: Interner Serverfehler.
  */
-router.put('/env', (req, res) => {
+router.put(
+  '/env',
+  asyncHandler(async (req, res) => {
     try {
-        const newEnvConfig = req.body; // Get the new configuration from the request body
-        saveEnvConfig(newEnvConfig); // Save the updated configuration
-        res.status(200).json({ message: 'Environment configuration updated successfully' }); // Confirm the update
+      const newEnvConfig = validateAndSanitizeEnvConfig(req.body);
+      await saveEnvConfig(newEnvConfig);
+      res.status(200).json({ message: 'Umgebungs-Konfiguration erfolgreich aktualisiert' });
     } catch (error) {
-        res.status(500).json({ message: error.message }); // Handle any errors
+      if (error.message.startsWith('Ungültige Konfigurationsdaten')) {
+        res.status(400).json({ message: error.message });
+      } else {
+        res.status(500).json({ message: 'Fehler beim Aktualisieren der Umgebungs-Konfiguration' });
+      }
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /settings/env/{key}:
  *   get:
- *     summary: Get a specific environment setting
+ *     summary: Eine bestimmte Umgebungs-Einstellung abrufen
  *     tags: [Environment Configuration]
- *     description: Retrieve the value of a specific key from the `.env` file.
+ *     description: Ruft den Wert eines bestimmten Schlüssels aus der `.env`-Datei ab.
  *     parameters:
  *       - in: path
  *         name: key
  *         required: true
  *         schema:
  *           type: string
- *         description: The environment key to retrieve.
+ *         description: Der Umgebungs-Schlüssel, der abgerufen werden soll.
  *     responses:
  *       200:
- *         description: The value of the specified environment key.
+ *         description: Der Wert des angegebenen Umgebungs-Schlüssels.
  *         content:
  *           application/json:
  *             schema:
  *               type: object
- *               properties:
- *                 key:
- *                   type: string
+ *               additionalProperties:
+ *                 type: string
+ *       400:
+ *         description: Ungültiger Schlüssel.
  *       404:
- *         description: Key not found.
+ *         description: Schlüssel nicht gefunden.
  *       500:
- *         description: Internal server error.
+ *         description: Interner Serverfehler.
  */
-router.get('/env/:key', (req, res) => {
+router.get(
+  '/env/:key',
+  asyncHandler(async (req, res) => {
     try {
-        const envConfig = loadEnvConfig(); // Load the current environment configuration
-        const key = req.params.key; // Get the key from the URL parameter
-        if (envConfig[key] !== undefined) {
-            res.json({
-                [key]: envConfig[key]
-            }); // Return the key-value pair if it exists
-        } else {
-            res.status(404).json({ message: `Key ${key} not found` }); // Return a 404 error if the key is not found
-        }
+      const key = validateAndSanitizeKey(req.params.key);
+      const envConfig = await loadEnvConfig();
+      if (envConfig[key] !== undefined) {
+        res.json({ [key]: envConfig[key] });
+      } else {
+        res.status(404).json({ message: `Schlüssel '${key}' nicht gefunden` });
+      }
     } catch (error) {
-        res.status(500).json({ message: error.message }); // Handle any errors
+      if (error.message.startsWith('Ungültiger Schlüssel')) {
+        res.status(400).json({ message: error.message });
+      } else {
+        res.status(500).json({ message: 'Fehler beim Laden der Umgebungs-Konfiguration' });
+      }
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /settings/env/{key}:
  *   put:
- *     summary: Update a specific environment setting
+ *     summary: Eine bestimmte Umgebungs-Einstellung aktualisieren
  *     tags: [Environment Configuration]
- *     description: Update the value of a specific key in the `.env` file.
+ *     description: Aktualisiert den Wert eines bestimmten Schlüssels in der `.env`-Datei.
  *     parameters:
  *       - in: path
  *         name: key
  *         required: true
  *         schema:
  *           type: string
- *         description: The environment key to update.
+ *         description: Der Umgebungs-Schlüssel, der aktualisiert werden soll.
  *     requestBody:
  *       required: true
  *       content:
@@ -134,32 +191,48 @@ router.get('/env/:key', (req, res) => {
  *                 type: string
  *     responses:
  *       200:
- *         description: Key updated successfully.
- *       404:
- *         description: Key not found.
+ *         description: Schlüssel erfolgreich aktualisiert.
+ *       400:
+ *         description: Ungültiger Schlüssel oder Wert.
  *       500:
- *         description: Internal server error.
+ *         description: Interner Serverfehler.
  */
-router.put('/env/:key', (req, res) => {
+router.put(
+  '/env/:key',
+  asyncHandler(async (req, res) => {
     try {
-        const envConfig = loadEnvConfig(); // Load the current environment configuration
-        const key = req.params.key; // Get the key from the URL parameter
-        const value = req.body.value; // Get the new value from the request body
-        envConfig[key] = value; // Update the key with the new value
-        saveEnvConfig(envConfig); // Save the updated configuration
-        res.status(200).json({ message: `Key ${key} updated successfully` }); // Confirm the update
+      const key = validateAndSanitizeKey(req.params.key);
+      const schema = Joi.object({
+        value: Joi.string().allow('').required(),
+      });
+      const { error, value } = schema.validate(req.body);
+      if (error) {
+        throw new Error(`Ungültiger Wert: ${error.details[0].message}`);
+      }
+
+      const sanitizedValue = sanitizeHtml(value.value);
+
+      const envConfig = await loadEnvConfig();
+      envConfig[key] = sanitizedValue;
+      await saveEnvConfig(envConfig);
+      res.status(200).json({ message: `Schlüssel '${key}' erfolgreich aktualisiert` });
     } catch (error) {
-        res.status(500).json({ message: error.message }); // Handle any errors
+      if (error.message.startsWith('Ungültig')) {
+        res.status(400).json({ message: error.message });
+      } else {
+        res.status(500).json({ message: 'Fehler beim Aktualisieren der Umgebungs-Konfiguration' });
+      }
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /settings/env:
  *   post:
- *     summary: Add a new environment setting
+ *     summary: Neue Umgebungs-Einstellungen hinzufügen
  *     tags: [Environment Configuration]
- *     description: Add a new key-value pair to the `.env` file.
+ *     description: Fügt neue Schlüssel-Wert-Paare zur `.env`-Datei hinzu.
  *     requestBody:
  *       required: true
  *       content:
@@ -170,60 +243,78 @@ router.put('/env/:key', (req, res) => {
  *               type: string
  *     responses:
  *       201:
- *         description: New configuration added successfully.
+ *         description: Neue Konfiguration erfolgreich hinzugefügt.
+ *       400:
+ *         description: Ungültige Konfigurationsdaten.
  *       500:
- *         description: Internal server error.
+ *         description: Interner Serverfehler.
  */
-router.post('/env', (req, res) => {
+router.post(
+  '/env',
+  asyncHandler(async (req, res) => {
     try {
-        const envConfig = loadEnvConfig(); // Load the current environment configuration
-        const newConfig = req.body; // Get the new configuration from the request body
-        for (let key in newConfig) {
-            envConfig[key] = newConfig[key]; // Add each new key-value pair to the configuration
-        }
-        saveEnvConfig(envConfig); // Save the updated configuration
-        res.status(201).json({ message: 'New configuration added successfully' }); // Confirm the addition
+      const newConfig = validateAndSanitizeEnvConfig(req.body);
+      const envConfig = await loadEnvConfig();
+      for (let key in newConfig) {
+        envConfig[key] = newConfig[key];
+      }
+      await saveEnvConfig(envConfig);
+      res.status(201).json({ message: 'Neue Konfiguration erfolgreich hinzugefügt' });
     } catch (error) {
-        res.status(500).json({ message: error.message }); // Handle any errors
+      if (error.message.startsWith('Ungültige Konfigurationsdaten')) {
+        res.status(400).json({ message: error.message });
+      } else {
+        res.status(500).json({ message: 'Fehler beim Hinzufügen der neuen Konfiguration' });
+      }
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /settings/env/{key}:
  *   delete:
- *     summary: Delete a specific environment setting
+ *     summary: Eine bestimmte Umgebungs-Einstellung löschen
  *     tags: [Environment Configuration]
- *     description: Remove a key-value pair from the `.env` file.
+ *     description: Entfernt ein Schlüssel-Wert-Paar aus der `.env`-Datei.
  *     parameters:
  *       - in: path
  *         name: key
  *         required: true
  *         schema:
  *           type: string
- *         description: The environment key to delete.
+ *         description: Der Umgebungs-Schlüssel, der gelöscht werden soll.
  *     responses:
- *       200:
- *         description: Key deleted successfully.
+ *       204:
+ *         description: Schlüssel erfolgreich gelöscht.
+ *       400:
+ *         description: Ungültiger Schlüssel.
  *       404:
- *         description: Key not found.
+ *         description: Schlüssel nicht gefunden.
  *       500:
- *         description: Internal server error.
+ *         description: Interner Serverfehler.
  */
-router.delete('/env/:key', (req, res) => {
+router.delete(
+  '/env/:key',
+  asyncHandler(async (req, res) => {
     try {
-        const envConfig = loadEnvConfig(); // Load the current environment configuration
-        const key = req.params.key; // Get the key from the URL parameter
-        if (envConfig[key] !== undefined) {
-            delete envConfig[key]; // Delete the key-value pair if it exists
-            saveEnvConfig(envConfig); // Save the updated configuration
-            res.status(200).json({ message: `Key ${key} deleted successfully` }); // Confirm the deletion
-        } else {
-            res.status(404).json({ message: `Key ${key} not found` }); // Return a 404 error if the key is not found
-        }
+      const key = validateAndSanitizeKey(req.params.key);
+      const envConfig = await loadEnvConfig();
+      if (envConfig[key] !== undefined) {
+        delete envConfig[key];
+        await saveEnvConfig(envConfig);
+        res.status(204).send();
+      } else {
+        res.status(404).json({ message: `Schlüssel '${key}' nicht gefunden` });
+      }
     } catch (error) {
-        res.status(500).json({ message: error.message }); // Handle any errors
+      if (error.message.startsWith('Ungültiger Schlüssel')) {
+        res.status(400).json({ message: error.message });
+      } else {
+        res.status(500).json({ message: 'Fehler beim Löschen des Umgebungs-Schlüssels' });
+      }
     }
-});
+  })
+);
 
-module.exports = router; // Export the router object for use in other parts of the application
+module.exports = router;

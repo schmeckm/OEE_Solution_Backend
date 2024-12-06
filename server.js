@@ -1,4 +1,6 @@
-// Load Environment Variables
+// server.js
+
+// === Load Environment Variables ===
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
@@ -9,189 +11,358 @@ const envFilePath = path.resolve(__dirname, `.env.${env}`);
 
 if (fs.existsSync(envFilePath)) {
     dotenv.config({ path: envFilePath });
-    console.log(`Loaded environment variables from ${envFilePath}`);
+    console.log(`✅ Umgebungsvariablen aus ${envFilePath} geladen.`);
 } else {
-    console.warn(`Environment file ${envFilePath} not found. Default variables will be used.`);
+    console.warn(`⚠️ Umgebungsdatei ${envFilePath} nicht gefunden. Standardvariablen werden verwendet.`);
+    dotenv.config(); // Load default .env if exists
 }
 
-const express = require("express");
-const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
-const https = require('https');
-const { Server } = require("ws");
-const swaggerJsDoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express');
-const { defaultLogger } = require("./utils/logger");
-const { logRetentionDays } = require("./config/config");
-const startLogCleanupJob = require("./cronJobs/logCleanupJob");
-const initializeMqttClient = require("./src/mqttClientSetup");
-const handleWebSocketConnections = require("./websocket/webSocketHandler");
-const gracefulShutdown = require("./src/shutdown");
-const { initializeInfluxDB } = require("./services/influxDBService");
-const registerApiRoutes = require("./routes/apiRoutes");
-const { setWebSocketServer } = require("./websocket/webSocketUtils");
+// === Import Logging Function ===
+const logEnvVariables = require('./utils/logEnv'); // Stellen Sie sicher, dass diese Datei existiert
 
-const app = express();
-const cors = require('cors');
-const httpsPort = process.env.HTTPS_PORT || 443;
+// Log environment variables
+if (process.env.NODE_ENV === 'development') { // Nur in der Entwicklungsumgebung loggen
+    logEnvVariables();
+}
 
-// === CORS Configuration ===
-const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS || '*';
-app.use(cors({
-    origin: allowedOrigins === '*' ? true : allowedOrigins.split(',')
-}));
+// === Import Required Modules ===
+let express, helmet, rateLimit, https, WebSocketServer, swaggerJsDoc, swaggerUi, cors;
+try {
+    console.log('🔄 Importiere Express...');
+    express = require("express");
+    console.log('✅ Express erfolgreich importiert.');
 
-// === API Key Middleware for External Requests Only ===
-app.use((req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
-    const clientIp = req.ip || req.socket.remoteAddress;
-    const requestHostname = req.hostname;
+    console.log('🔄 Importiere Helmet...');
+    helmet = require("helmet");
+    console.log('✅ Helmet erfolgreich importiert.');
 
-    const isInternalRequest = ['::1', '127.0.0.1', 'localhost', process.env.INTERNAL_SERVER_IP].includes(clientIp) ||
-        requestHostname === 'localhost' ||
-        requestHostname === process.env.INTERNAL_SERVER_HOSTNAME;
+    console.log('🔄 Importiere express-rate-limit...');
+    rateLimit = require("express-rate-limit");
+    console.log('✅ express-rate-limit erfolgreich importiert.');
 
-    defaultLogger.info(`Request from IP: ${clientIp}, Hostname: ${requestHostname}, Internal: ${isInternalRequest}`);
-    
-    if (process.env.NODE_ENV === 'production' && !isInternalRequest && apiKey !== process.env.API_KEY) {
-        defaultLogger.error('Unauthorized: Invalid API Key provided.');
-        return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
-    }
+    console.log('🔄 Importiere HTTPS...');
+    https = require('https');
+    console.log('✅ HTTPS erfolgreich importiert.');
 
-    next();
-});
+    console.log('🔄 Importiere ws...');
+    WebSocketServer = require("ws").Server;
+    console.log('✅ ws erfolgreich importiert.');
+
+    console.log('🔄 Importiere swagger-jsdoc...');
+    swaggerJsDoc = require('swagger-jsdoc');
+    console.log('✅ swagger-jsdoc erfolgreich importiert.');
+
+    console.log('🔄 Importiere swagger-ui-express...');
+    swaggerUi = require('swagger-ui-express');
+    console.log('✅ swagger-ui-express erfolgreich importiert.');
+
+    console.log('🔄 Importiere CORS...');
+    cors = require('cors');
+    console.log('✅ CORS erfolgreich importiert.');
+
+} catch (error) {
+    console.error('❌ Fehler beim Importieren von Modulen:', error);
+    process.exit(1);
+}
+
+// === Initialize Express App ===
+let app;
+try {
+    console.log('📝 Initialisiere Express App...');
+    app = express();
+    console.log('✅ Express App erfolgreich initialisiert.');
+} catch (error) {
+    console.error('❌ Fehler bei der Initialisierung der Express App:', error);
+    process.exit(1);
+}
 
 // === Security Middleware ===
-app.use(helmet());
-app.use(
-    helmet.contentSecurityPolicy({
-        useDefaults: true,
-        directives: {
-            "img-src": ["'self'", "https:", "data:", "https://lh3.googleusercontent.com"],
-            "default-src": ["'self'"],
-            "script-src": ["'self'"],
-            "style-src": ["'self'"]
-        }
-    })
-);
-app.use(helmet.referrerPolicy({ policy: 'no-referrer' }));
+try {
+    app.use(helmet());
+    app.use(
+        helmet.contentSecurityPolicy({
+            useDefaults: true,
+            directives: {
+                "img-src": ["'self'", "https:", "data:", "https://lh3.googleusercontent.com"],
+                "default-src": ["'self'"],
+                "script-src": ["'self'"],
+                "style-src": ["'self'"]
+            }
+        })
+    );
+    app.use(helmet.referrerPolicy({ policy: 'no-referrer' }));
+    console.log('🔒 Helmet Sicherheits-Middleware initialisiert.');
+} catch (error) {
+    console.error('❌ Fehler beim Initialisieren der Sicherheits-Middleware:', error);
+    process.exit(1);
+}
+
+// === CORS Configuration ===
+try {
+    const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS || '*';
+    app.use(cors({
+        origin: allowedOrigins === '*' ? true : allowedOrigins.split(',')
+    }));
+    console.log(`🔗 CORS konfiguriert mit Ursprüngen: ${allowedOrigins}`);
+} catch (error) {
+    console.error('❌ Fehler bei der Konfiguration von CORS:', error);
+    process.exit(1);
+}
 
 // === Middleware for Parsing JSON and Form Data ===
-app.use(express.json({ limit: "10kb" }));
-app.use(express.urlencoded({ extended: true, limit: "10kb" }));
-app.use(express.static(path.join(__dirname, "public")));
-
-// === Initialize InfluxDB (if used) ===
-initializeInfluxDB();
-
-// === Logging Middleware ===
-app.use((req, res, next) => {
-    defaultLogger.info(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
-    next();
-});
-
-// === Global Error Handling Middleware ===
-app.use((err, req, res, next) => {
-    defaultLogger.error(`[${new Date().toISOString()}] Error: ${err.message}`);
-    defaultLogger.error(err.stack);
-    res.status(500).send("Something went wrong!");
-});
+try {
+    app.use(express.json({ limit: "10kb" }));
+    app.use(express.urlencoded({ extended: true, limit: "10kb" }));
+    app.use(express.static(path.join(__dirname, "public")));
+    console.log('📦 Middleware für JSON und URL-codierte Daten erfolgreich initialisiert.');
+} catch (error) {
+    console.error('❌ Fehler beim Initialisieren der Datenparsing-Middleware:', error);
+    process.exit(1);
+}
 
 // === Rate Limiting to Prevent DoS Attacks ===
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-const limiter = rateLimit({
-    windowMs: RATE_LIMIT_WINDOW_MS,
-    max: 100
-});
-app.use(limiter);
+try {
+    const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 Minuten
+    const limiter = rateLimit({
+        windowMs: RATE_LIMIT_WINDOW_MS,
+        max: 100,
+        message: 'Zu viele Anfragen von dieser IP, bitte versuchen Sie es später erneut.'
+    });
+    app.use(limiter);
+    console.log(`📈 Ratenbegrenzung aktiviert: Maximal ${limiter.max} Anfragen pro ${RATE_LIMIT_WINDOW_MS / 60000} Minuten.`);
+} catch (error) {
+    console.error('❌ Fehler beim Einrichten der Ratenbegrenzung:', error);
+    process.exit(1);
+}
+
+// === Initialize InfluxDB (if used) ===
+try {
+    const { initializeInfluxDB } = require("./services/influxDBService"); // Stellen Sie sicher, dass diese Datei existiert
+    initializeInfluxDB();
+    console.log('📈 InfluxDB erfolgreich initialisiert.');
+} catch (error) {
+    console.error('❌ Fehler bei der Initialisierung von InfluxDB:', error);
+    // Abhängig von Ihrer Anwendung können Sie entscheiden, ob Sie fortfahren oder abbrechen
+}
+
+// === Logging Middleware ===
+try {
+    const { defaultLogger } = require("./utils/logger"); // Stellen Sie sicher, dass diese Datei existiert
+    app.use((req, res, next) => {
+        defaultLogger.info(`[${new Date().toISOString()}] ${req.method} ${req.url} von ${req.ip}`);
+        next();
+    });
+    console.log('📝 Logging-Middleware erfolgreich initialisiert.');
+} catch (error) {
+    console.error('❌ Fehler beim Einrichten der Logging-Middleware:', error);
+    process.exit(1);
+}
+
+// === API Key Middleware for External Requests Only ===
+try {
+    const { defaultLogger } = require("./utils/logger"); // Stellen Sie sicher, dass diese Datei existiert
+    app.use((req, res, next) => {
+        const apiKey = req.headers['x-api-key'];
+        const clientIp = req.ip || req.socket.remoteAddress;
+        const requestHostname = req.hostname;
+
+        const isInternalRequest = ['::1', '127.0.0.1', 'localhost', process.env.INTERNAL_SERVER_IP].includes(clientIp) ||
+            requestHostname === 'localhost' ||
+            requestHostname === process.env.INTERNAL_SERVER_HOSTNAME;
+
+        defaultLogger.info(`📍 Anfrage von IP: ${clientIp}, Hostname: ${requestHostname}, Intern: ${isInternalRequest}`);
+
+        if (process.env.NODE_ENV === 'production' && !isInternalRequest && apiKey !== process.env.API_KEY) {
+            defaultLogger.error('❌ Unautorisiert: Ungültiger API-Schlüssel bereitgestellt.');
+            return res.status(401).json({ error: 'Unautorisiert: Ungültiger API-Schlüssel' });
+        }
+
+        next();
+    });
+    console.log('🔒 API-Key Middleware erfolgreich eingerichtet.');
+} catch (error) {
+    console.error('❌ Fehler beim Einrichten der API-Key Middleware:', error);
+    process.exit(1);
+}
 
 // === Register API Routes ===
-registerApiRoutes(app);
-defaultLogger.info("Logger initialized successfully.");
+try {
+    const registerApiRoutes = require("./routes/apiRoutes"); // Stellen Sie sicher, dass diese Datei existiert
+    registerApiRoutes(app);
+    console.log('📁 API-Routen erfolgreich registriert.');
+} catch (error) {
+    console.error('❌ Fehler beim Registrieren der API-Routen:', error);
+    process.exit(1);
+}
+
+// === Global Error Handling Middleware ===
+try {
+    const { defaultLogger } = require("./utils/logger"); // Stellen Sie sicher, dass diese Datei existiert
+    app.use((err, req, res, next) => {
+        defaultLogger.error(`[${new Date().toISOString()}] Fehler: ${err.message}`);
+        defaultLogger.error(err.stack);
+        res.status(500).send("Etwas ist schief gelaufen!");
+    });
+    console.log('⚠️ Globale Fehlerbehandlungs-Middleware erfolgreich eingerichtet.');
+} catch (error) {
+    console.error('❌ Fehler beim Einrichten der globalen Fehlerbehandlung:', error);
+    process.exit(1);
+}
 
 // === Log Cleanup Job ===
-startLogCleanupJob(logRetentionDays);
+try {
+    const startLogCleanupJob = require("./cronJobs/logCleanupJob"); // Stellen Sie sicher, dass diese Datei existiert
+    const logRetentionDays = process.env.LOG_RETENTION_DAYS || 7;
+    startLogCleanupJob(logRetentionDays);
+    console.log(`🧹 Log-Cleanup-Job gestartet. Logs älter als ${logRetentionDays} Tage werden gelöscht.`);
+} catch (error) {
+    console.error('❌ Fehler beim Starten des Log-Cleanup-Jobs:', error);
+    // Abhängig von Ihrer Anwendung können Sie entscheiden, ob Sie fortfahren oder abbrechen
+}
 
 // === MQTT Client Initialization (if used) ===
-const mqttClient = initializeMqttClient();
+let mqttClient;
+try {
+    const initializeMqttClient = require("./src/mqttClientSetup"); // Stellen Sie sicher, dass diese Datei existiert
+    mqttClient = initializeMqttClient();
+    console.log('🔌 MQTT-Client erfolgreich initialisiert.');
+} catch (error) {
+    console.error('❌ Fehler bei der Initialisierung des MQTT-Clients:', error);
+    // Abhängig von Ihrer Anwendung können Sie entscheiden, ob Sie fortfahren oder abbrechen
+}
 
 // === HTTPS Server Setup ===
 let sslOptions;
-if (process.env.NODE_ENV === 'production') {
-    sslOptions = {
-        key: fs.readFileSync(process.env.SSL_KEY_PATH),
-        cert: fs.readFileSync(process.env.SSL_CERT_PATH),
-        ca: process.env.SSL_CA_PATH ? fs.readFileSync(process.env.SSL_CA_PATH) : undefined
-    };
-} else {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    sslOptions = {
-        key: fs.readFileSync(process.env.SSL_KEY_PATH),
-        cert: fs.readFileSync(process.env.SSL_CERT_PATH)
-    };
+try {
+    if (process.env.USE_HTTPS === 'true') {
+        if (process.env.NODE_ENV === 'production') {
+            sslOptions = {
+                key: fs.readFileSync(process.env.SSL_KEY_PATH),
+                cert: fs.readFileSync(process.env.SSL_CERT_PATH),
+                ca: process.env.SSL_CA_PATH ? fs.readFileSync(process.env.SSL_CA_PATH) : undefined
+            };
+        } else {
+            process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+            sslOptions = {
+                key: fs.readFileSync(process.env.SSL_KEY_PATH),
+                cert: fs.readFileSync(process.env.SSL_CERT_PATH)
+            };
+        }
+        console.log('🔑 SSL-Zertifikate erfolgreich geladen.');
+    } else {
+        console.warn('⚠️ HTTPS ist deaktiviert. Der Server läuft ohne SSL.');
+    }
+} catch (error) {
+    console.error(`❌ Fehler beim Laden der SSL-Zertifikate: ${error.message}`);
+    process.exit(1); // Beenden Sie die Anwendung, wenn SSL-Zertifikate nicht geladen werden können
 }
 
-const httpsServer = https.createServer(sslOptions, app).listen(httpsPort, () => {
-    defaultLogger.info(`HTTPS Server is running on port ${httpsPort}`);
+const httpsPort = process.env.HTTPS_PORT || 8443;
+
+const httpsServer = https.createServer(sslOptions, app);
+
+httpsServer.listen(httpsPort, () => {
+    console.log(`✅ HTTPS-Server läuft auf Port ${httpsPort}`);
 }).on('error', (err) => {
-    defaultLogger.error(`Failed to start HTTPS server: ${err.message}`);
+    console.error(`🔴 HTTPS-Server konnte nicht gestartet werden: ${err.message}`);
+    process.exit(1); // Beenden Sie die Anwendung bei einem Fehler beim Starten des Servers
 });
 
 // === WebSocket Server Setup ===
-const wss = new Server({ server: httpsServer });
-setWebSocketServer(wss);
-handleWebSocketConnections(wss);
-defaultLogger.info("WebSocket server is running and waiting for connections.");
-
-// === Graceful Shutdown Handling ===
-process.on("SIGTERM", () => gracefulShutdown(httpsServer, mqttClient, "SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown(httpsServer, mqttClient, "SIGINT"));
+try {
+    const { setWebSocketServer, sendWebSocketMessage } = require("./websocket/webSocketUtils"); // Destrukturieren
+    const handleWebSocketConnections = require("./websocket/webSocketHandler"); // Stellen Sie sicher, dass diese Datei existiert
+    const wss = new WebSocketServer({ server: httpsServer });
+    setWebSocketServer(wss);
+    handleWebSocketConnections(wss);
+    console.log('🔗 WebSocket-Server läuft und wartet auf Verbindungen.');
+} catch (error) {
+    console.error(`❌ Fehler beim Einrichten des WebSocket-Servers: ${error.message}`);
+    process.exit(1); // Beenden Sie die Anwendung bei einem Fehler beim Initialisieren des WebSocket-Servers
+}
 
 // === Swagger Setup ===
-const swaggerOptions = {
-    swaggerDefinition: {
-        openapi: "3.0.0",
-        info: {
-            title: "OEE Metrics API",
-            version: "1.0.0",
-            description: "API for managing OEE metrics and related resources.",
-            contact: {
-                name: "Support Team",
-                email: "oeesolution@gamil.com"
-            }
-        },
-        servers: [
-            {
-                url: process.env.NODE_ENV === 'production' ?
-                    `https://iotshowroom.de/api/v1` : `https://localhost:${process.env.HTTPS_PORT || 443}/api/v1`,
-                description: process.env.NODE_ENV === 'production' ? "Production server" : "Development server"
-            }
-        ],
-        components: {
-            securitySchemes: {
-                ApiKeyAuth: {
-                    type: "apiKey",
-                    in: "header",
-                    name: "x-api-key",
-                    description: "Enter your API Key to access the API."
+try {
+    const swaggerOptions = {
+        swaggerDefinition: {
+            openapi: "3.0.0",
+            info: {
+                title: "OEE Metrics API",
+                version: "1.0.0",
+                description: "API zur Verwaltung von OEE-Metriken und verwandten Ressourcen.",
+                contact: {
+                    name: "Support-Team",
+                    email: "oeesolution@gamil.com"
                 }
-            }
+            },
+            servers: [
+                {
+                    url: process.env.NODE_ENV === 'production' ?
+                        `https://iotshowroom.de/api/v1` : `https://localhost:${httpsPort}/api/v1`,
+                    description: process.env.NODE_ENV === 'production' ? "Produktionsserver" : "Entwicklungsserver"
+                }
+            ],
+            components: {
+                securitySchemes: {
+                    ApiKeyAuth: {
+                        type: "apiKey",
+                        in: "header",
+                        name: "x-api-key",
+                        description: "Geben Sie Ihren API-Schlüssel ein, um auf die API zuzugreifen."
+                    }
+                }
+            },
+            security: [
+                {
+                    ApiKeyAuth: [] // Alle Endpunkte erfordern den API-Key
+                }
+            ]
         },
-        security: [
-            {
-                ApiKeyAuth: [] // Alle Endpunkte erfordern den API-Key
-            }
-        ]
-    },
-    apis: ["./routes/*.js"], // Pfad zu deinen API-Routen
-};
+        apis: ["./routes/*.js"], // Pfad zu Ihren API-Routen
+    };
 
-const swaggerDocs = swaggerJsDoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+    const swaggerDocs = swaggerJsDoc(swaggerOptions);
+    app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+    app.get("/api-docs-json", (req, res) => {
+        res.setHeader("Content-Type", "application/json");
+        res.send(swaggerDocs);
+    });
+    console.log("📄 Swagger-Dokumentation verfügbar unter /api-docs und /api-docs-json.");
+} catch (error) {
+    console.error(`❌ Fehler beim Einrichten von Swagger: ${error.message}`);
+    process.exit(1); // Beenden Sie die Anwendung bei einem Fehler beim Initialisieren von Swagger
+}
 
-// === Swagger JSON Endpoint ===
-app.get("/api-docs-json", (req, res) => {
-    res.setHeader("Content-Type", "application/json");
-    res.send(swaggerDocs);
-});
-defaultLogger.info("Swagger documentation available at /api-docs and /api-docs-json.");
+// === Graceful Shutdown Handling ===
+try {
+    const gracefulShutdown = require("./src/shutdown"); // Stellen Sie sicher, dass diese Datei existiert
+
+    process.on("SIGTERM", () => gracefulShutdown(httpsServer, mqttClient, "SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown(httpsServer, mqttClient, "SIGINT"));
+    console.log('🛑 Graceful Shutdown Handlers eingerichtet.');
+} catch (error) {
+    console.error(`❌ Fehler beim Einrichten der Graceful Shutdown Handlers: ${error.message}`);
+    process.exit(1);
+}
+
+// === Handle Unhandled Rejections and Exceptions ===
+try {
+    const { defaultLogger } = require("./utils/logger"); // Stellen Sie sicher, dass diese Datei existiert
+
+    process.on('unhandledRejection', (reason, promise) => {
+        defaultLogger.error('🔴 Unhandled Rejection bei:', promise, 'Grund:', reason);
+        // Optional: Prozess beenden
+        // process.exit(1);
+    });
+
+    process.on('uncaughtException', (error) => {
+        defaultLogger.error('🔴 Uncaught Exception geworfen:', error);
+        // Optional: Prozess beenden
+        // process.exit(1);
+    });
+
+    console.log('🚨 Unhandled Rejections und Uncaught Exceptions Handler eingerichtet.');
+} catch (error) {
+    console.error(`❌ Fehler beim Einrichten der Prozess-Handler: ${error.message}`);
+    process.exit(1);
+}

@@ -1,69 +1,100 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
-const { param, body, validationResult } = require('express-validator');
-const { v4: uuidv4 } = require('uuid'); // Import UUID
+const { v4: uuidv4 } = require('uuid');
+const Joi = require('joi');
+const sanitizeHtml = require('sanitize-html');
+
 const router = express.Router();
 
 const configPath = path.join(__dirname, '../data/tact.json');
 
+// Zentralisiertes Fehlerhandling
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+// Eingabedaten validieren und säubern
+const validateAndSanitizeTact = (data) => {
+  const schema = Joi.object({
+    machine: Joi.string().required(),
+    material: Joi.string().required(),
+    sollMax: Joi.number().required(),
+    sollMin: Joi.number().required(),
+  });
+
+  const { error, value } = schema.validate(data);
+
+  if (error) {
+    throw new Error(error.details[0].message);
+  }
+
+  // Eingaben säubern
+  value.machine = sanitizeHtml(value.machine);
+  value.material = sanitizeHtml(value.material);
+
+  return value;
+};
+
 // Async function to load tact data
-async function loadTactData() {
-    try {
-        const data = await fs.readFile(configPath, 'utf-8');
-        return JSON.parse(data);
-    } catch (error) {
-        throw new Error('Failed to load tact data');
-    }
-}
+const loadTactData = async () => {
+  try {
+    const data = await fs.readFile(configPath, 'utf-8');
+    return JSON.parse(data);
+  } catch (error) {
+    throw new Error('Failed to load tact data');
+  }
+};
 
 // Async function to save tact data
-async function saveTactData(data) {
-    try {
-        await fs.writeFile(configPath, JSON.stringify(data, null, 2), 'utf-8');
-    } catch (error) {
-        throw new Error('Failed to save tact data');
-    }
-}
+const saveTactData = async (data) => {
+  try {
+    await fs.writeFile(configPath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (error) {
+    throw new Error('Failed to save tact data');
+  }
+};
 
 /**
  * @swagger
  * tags:
  *   name: Tact
- *   description: API for managing Tact data. It defined how fast the machine is allowed to run for that specific material
+ *   description: API zur Verwaltung von Tact-Daten. Definiert, wie schnell die Maschine für ein bestimmtes Material laufen darf.
  */
 
 /**
  * @swagger
  * /tact:
  *   get:
- *     summary: Get all tact entries
+ *     summary: Alle Tact-Einträge abrufen
  *     tags: [Tact]
- *     description: Retrieve a list of all tact entries.
+ *     description: Ruft eine Liste aller Tact-Einträge ab.
  *     responses:
  *       200:
- *         description: A list of tact entries.
+ *         description: Eine Liste von Tact-Einträgen.
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 type: object
+ *                 $ref: '#/components/schemas/Tact'
  */
-router.get('/', async (req, res) => {
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
     try {
-        const tactData = await loadTactData(); // Load all tact data
-        res.json(tactData);
+      const tactData = await loadTactData();
+      res.json(tactData);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+      res.status(500).json({ message: error.message });
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /tact/{id}:
  *   get:
- *     summary: Get a specific tact entry by ID
+ *     summary: Einen bestimmten Tact-Eintrag nach ID abrufen
  *     tags: [Tact]
  *     parameters:
  *       - in: path
@@ -71,94 +102,93 @@ router.get('/', async (req, res) => {
  *         required: true
  *         schema:
  *           type: string
- *         description: The tact ID (UUID).
+ *         description: Die Tact-ID (UUID).
  *     responses:
  *       200:
- *         description: A tact entry object.
+ *         description: Ein Tact-Eintrag.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tact'
+ *       400:
+ *         description: Ungültige ID.
  *       404:
- *         description: Tact entry not found.
+ *         description: Tact-Eintrag nicht gefunden.
  */
-router.get('/:id', param('id').isUUID(), async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
-
+router.get(
+  '/:id',
+  asyncHandler(async (req, res) => {
     try {
-        const tactData = await loadTactData();
-        const tact = tactData.find(t => t.id === req.params.id);
+      const id = sanitizeHtml(req.params.id);
 
-        if (tact) {
-            res.json(tact);
-        } else {
-            res.status(404).json({ message: `Tact entry with ID ${req.params.id} not found` });
-        }
+      // Validierung der ID
+      const schema = Joi.string().uuid().required();
+      const { error } = schema.validate(id);
+      if (error) {
+        return res.status(400).json({ message: 'Ungültige ID' });
+      }
+
+      const tactData = await loadTactData();
+      const tact = tactData.find((t) => t.id === id);
+
+      if (tact) {
+        res.json(tact);
+      } else {
+        res.status(404).json({ message: `Tact-Eintrag mit ID ${id} nicht gefunden` });
+      }
     } catch (error) {
-        res.status(500).json({ error: error.message });
+      res.status(500).json({ message: error.message });
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /tact:
  *   post:
- *     summary: Create a new tact entry
+ *     summary: Einen neuen Tact-Eintrag erstellen
  *     tags: [Tact]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               machine:
- *                 type: string
- *               material:
- *                 type: string
- *               sollMax:
- *                 type: number
- *               sollMin:
- *                 type: number
+ *             $ref: '#/components/schemas/TactInput'
  *     responses:
  *       201:
- *         description: Tact entry created successfully.
+ *         description: Tact-Eintrag erfolgreich erstellt.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tact'
+ *       400:
+ *         description: Ungültige Eingabedaten.
  */
 router.post(
-    '/',
-    body('machine').notEmpty(),
-    body('material').notEmpty(),
-    body('sollMax').isNumeric(),
-    body('sollMin').isNumeric(),
-    async (req, res) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
-        }
+  '/',
+  asyncHandler(async (req, res) => {
+    try {
+      const tactData = await loadTactData();
+      const sanitizedData = validateAndSanitizeTact(req.body);
 
-        try {
-            const tactData = await loadTactData();
-            const newTact = {
-                id: uuidv4(), // Generate UUID for new tact entry
-                machine: req.body.machine,
-                material: req.body.material,
-                sollMax: req.body.sollMax,
-                sollMin: req.body.sollMin
-            };
+      // Neue ID generieren
+      sanitizedData.id = uuidv4();
 
-            tactData.push(newTact);
-            await saveTactData(tactData);
-            res.status(201).json({ message: 'Tact entry created successfully', tact: newTact });
-        } catch (error) {
-            res.status(500).json({ error: error.message });
-        }
+      tactData.push(sanitizedData);
+      await saveTactData(tactData);
+
+      res.status(201).json(sanitizedData);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
     }
+  })
 );
 
 /**
  * @swagger
  * /tact/{id}:
  *   put:
- *     summary: Update an existing tact entry
+ *     summary: Einen bestehenden Tact-Eintrag aktualisieren
  *     tags: [Tact]
  *     parameters:
  *       - in: path
@@ -166,53 +196,63 @@ router.post(
  *         required: true
  *         schema:
  *           type: string
- *         description: The tact ID (UUID).
+ *         description: Die Tact-ID (UUID).
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               machine:
- *                 type: string
- *               material:
- *                 type: string
- *               sollMax:
- *                 type: number
- *               sollMin:
- *                 type: number
+ *             $ref: '#/components/schemas/TactInput'
  *     responses:
  *       200:
- *         description: Tact entry updated successfully.
+ *         description: Tact-Eintrag erfolgreich aktualisiert.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tact'
+ *       400:
+ *         description: Ungültige Eingabedaten oder ID.
+ *       404:
+ *         description: Tact-Eintrag nicht gefunden.
  */
-router.put('/:id', param('id').isUUID(), async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
-
+router.put(
+  '/:id',
+  asyncHandler(async (req, res) => {
     try {
-        const tactData = await loadTactData();
-        const index = tactData.findIndex(t => t.id === req.params.id);
+      const id = sanitizeHtml(req.params.id);
 
-        if (index !== -1) {
-            tactData[index] = { ...tactData[index], ...req.body };
-            await saveTactData(tactData);
-            res.status(200).json({ message: 'Tact entry updated successfully', tact: tactData[index] });
-        } else {
-            res.status(404).json({ message: `Tact entry with ID ${req.params.id} not found` });
-        }
+      // Validierung der ID
+      const idSchema = Joi.string().uuid().required();
+      const { error: idError } = idSchema.validate(id);
+      if (idError) {
+        return res.status(400).json({ message: 'Ungültige ID' });
+      }
+
+      const tactData = await loadTactData();
+      const index = tactData.findIndex((t) => t.id === id);
+
+      if (index !== -1) {
+        const sanitizedData = validateAndSanitizeTact(req.body);
+        sanitizedData.id = id;
+
+        tactData[index] = { ...tactData[index], ...sanitizedData };
+        await saveTactData(tactData);
+
+        res.status(200).json(tactData[index]);
+      } else {
+        res.status(404).json({ message: `Tact-Eintrag mit ID ${id} nicht gefunden` });
+      }
     } catch (error) {
-        res.status(500).json({ error: error.message });
+      res.status(400).json({ message: error.message });
     }
-});
+  })
+);
 
 /**
  * @swagger
  * /tact/{id}:
  *   delete:
- *     summary: Delete a tact entry
+ *     summary: Einen Tact-Eintrag löschen
  *     tags: [Tact]
  *     parameters:
  *       - in: path
@@ -220,31 +260,42 @@ router.put('/:id', param('id').isUUID(), async (req, res) => {
  *         required: true
  *         schema:
  *           type: string
- *         description: The tact ID (UUID).
+ *         description: Die Tact-ID (UUID).
  *     responses:
- *       200:
- *         description: Tact entry deleted successfully.
+ *       204:
+ *         description: Tact-Eintrag erfolgreich gelöscht.
+ *       400:
+ *         description: Ungültige ID.
+ *       404:
+ *         description: Tact-Eintrag nicht gefunden.
  */
-router.delete('/:id', param('id').isUUID(), async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
-
+router.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
     try {
-        let tactData = await loadTactData();
-        const initialLength = tactData.length;
-        tactData = tactData.filter(t => t.id !== req.params.id);
+      const id = sanitizeHtml(req.params.id);
 
-        if (tactData.length !== initialLength) {
-            await saveTactData(tactData);
-            res.status(200).json({ message: 'Tact entry deleted successfully' });
-        } else {
-            res.status(404).json({ message: `Tact entry with ID ${req.params.id} not found` });
-        }
+      // Validierung der ID
+      const schema = Joi.string().uuid().required();
+      const { error } = schema.validate(id);
+      if (error) {
+        return res.status(400).json({ message: 'Ungültige ID' });
+      }
+
+      let tactData = await loadTactData();
+      const initialLength = tactData.length;
+      tactData = tactData.filter((t) => t.id !== id);
+
+      if (tactData.length !== initialLength) {
+        await saveTactData(tactData);
+        res.status(204).send();
+      } else {
+        res.status(404).json({ message: `Tact-Eintrag mit ID ${id} nicht gefunden` });
+      }
     } catch (error) {
-        res.status(500).json({ error: error.message });
+      res.status(500).json({ message: error.message });
     }
-});
+  })
+);
 
-module.exports = router; // Export the router for use in other parts
+module.exports = router;

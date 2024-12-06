@@ -1,55 +1,115 @@
 const express = require('express');
+const Joi = require('joi');
+const sanitizeHtml = require('sanitize-html');
+
 const { generateTopics } = require('../services/topicService');
 
 const router = express.Router();
+
+// Zentralisiertes Fehlerhandling
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+// Eingabevalidierung und -säuberung
+const validateAndSanitizeQuery = (query) => {
+  const schema = Joi.object({
+    plant: Joi.string().optional(),
+    area: Joi.string().optional(),
+    line: Joi.string().optional(),
+  });
+
+  const { error, value } = schema.validate(query);
+
+  if (error) {
+    throw new Error(`Ungültige Abfrageparameter: ${error.details[0].message}`);
+  }
+
+  // Eingaben säubern
+  if (value.plant) value.plant = sanitizeHtml(value.plant);
+  if (value.area) value.area = sanitizeHtml(value.area);
+  if (value.line) value.line = sanitizeHtml(value.line);
+
+  return value;
+};
 
 /**
  * @swagger
  * tags:
  *   name: Topics
- *   description: API for generating dynamic topics based on machine and OEE configuration
+ *   description: API zur Generierung dynamischer Topics basierend auf Maschinen- und OEE-Konfiguration
  */
 
 /**
  * @swagger
  * /topics:
  *   get:
- *     summary: Get dynamic topics
+ *     summary: Dynamische Topics abrufen
  *     tags: [Topics]
- *     description: Generate topics based on the Plant, Area, or Line.
+ *     description: Generiert Topics basierend auf Plant, Area oder Line.
  *     parameters:
  *       - in: query
  *         name: plant
  *         schema:
  *           type: string
- *         description: Filter by Plant
+ *         description: Filter nach Plant
  *       - in: query
  *         name: area
  *         schema:
  *           type: string
- *         description: Filter by Area
+ *         description: Filter nach Area
  *       - in: query
  *         name: line
  *         schema:
  *           type: string
- *         description: Filter by Line
+ *         description: Filter nach Line
  *     responses:
  *       200:
- *         description: A list of generated topics.
+ *         description: Eine Liste generierter Topics.
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
  *                 type: string
+ *       400:
+ *         description: Ungültige Abfrageparameter.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Interner Serverfehler.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
  */
-router.get('/', async(req, res) => {
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
     try {
-        const topics = await generateTopics(req.query.plant, req.query.area, req.query.line);
-        res.json(topics);
+      // Eingabevalidierung und -säuberung
+      const { plant, area, line } = validateAndSanitizeQuery(req.query);
+
+      // Generieren der Topics
+      const topics = await generateTopics(plant, area, line);
+
+      res.json(topics);
     } catch (error) {
-        res.status(500).json({ error: 'Internal Server Error' });
+      if (error.message.startsWith('Ungültige Abfrageparameter')) {
+        res.status(400).json({ message: error.message });
+      } else {
+        console.error('[ERROR]', error);
+        res.status(500).json({ message: 'Interner Serverfehler' });
+      }
     }
-});
+  })
+);
 
 module.exports = router;

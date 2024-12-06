@@ -1,22 +1,24 @@
+// websocket/webSocketUtils.js
+
 const WebSocket = require("ws");
 const { oeeLogger, errorLogger } = require("../utils/logger");
 const { loadMachineStoppagesData } = require("../src/dataLoader");
 
-let wsServer = null; // Holds the WebSocket server instance
+let wsServer = null; // Hält die WebSocket-Server-Instanz
 
 /**
- * Sets the WebSocket server and handles client connections.
+ * Setzt den WebSocket-Server und behandelt Client-Verbindungen.
  *
- * @param {WebSocket.Server} server - The WebSocket server instance.
+ * @param {WebSocket.Server} server - Die WebSocket-Server-Instanz.
  */
 function setWebSocketServer(server) {
     if (!wsServer) {
         wsServer = server;
-        oeeLogger.info("WebSocket server instance has been set.");
-        wsServer.on("connection", async(ws) => {
-            oeeLogger.info("Client connected to WebSocket.");
+        oeeLogger.info("WebSocket-Server-Instanz wurde gesetzt.");
+        wsServer.on("connection", async (ws) => {
+            oeeLogger.info("Client mit WebSocket verbunden.");
 
-            // Set up ping/pong mechanism to detect broken connections
+            // Ping/Pong-Mechanismus zur Erkennung unterbrochener Verbindungen
             ws.isAlive = true;
             ws.on('pong', () => {
                 ws.isAlive = true;
@@ -25,43 +27,43 @@ function setWebSocketServer(server) {
             const interval = setInterval(() => {
                 wsServer.clients.forEach((client) => {
                     if (client.isAlive === false) {
-                        client.terminate(); // Terminate the connection if the client did not respond
-                        oeeLogger.info('Terminated inactive WebSocket client.');
+                        client.terminate(); // Verbindung beenden, wenn der Client nicht reagiert
+                        oeeLogger.info('Inaktive WebSocket-Client-Verbindung beendet.');
                     } else {
                         client.isAlive = false;
-                        client.ping(); // Send a ping to the client
+                        client.ping(); // Ping an den Client senden
                     }
                 });
-            }, 30000); // Ping every 30 seconds
+            }, 30000); // Alle 30 Sekunden pingen
 
-            // Send initial machine stoppages data to the newly connected client
+            // Initiale Daten an den neu verbundenen Client senden
             try {
                 const machineStoppagesData = await loadMachineStoppagesData();
                 sendWebSocketMessage("Microstops", machineStoppagesData);
-                oeeLogger.info("Initial machine stoppages data sent to WebSocket client.");
+                oeeLogger.info("Initiale Maschinenstoppdaten an WebSocket-Client gesendet.");
             } catch (error) {
-                errorLogger.error(`Error sending initial machine stoppages data: ${error.message}`);
+                errorLogger.error(`Fehler beim Senden der initialen Maschinenstoppdaten: ${error.message}`);
             }
 
             ws.on("close", () => {
-                oeeLogger.info("WebSocket client disconnected.");
-                clearInterval(interval); // Stop the ping interval when the client disconnects
+                oeeLogger.info("WebSocket-Client getrennt.");
+                clearInterval(interval); // Ping-Intervall stoppen, wenn der Client trennt
             });
 
             ws.on("error", (error) => {
-                errorLogger.error(`WebSocket error: ${error.message}`);
+                errorLogger.error(`WebSocket-Fehler: ${error.message}`);
             });
         });
     } else {
-        errorLogger.warn("WebSocket server instance is already set.");
+        errorLogger.warn("WebSocket-Server-Instanz ist bereits gesetzt.");
     }
 }
 
 /**
- * Send data to all connected WebSocket clients with a specified type.
+ * Sendet Daten an alle verbundenen WebSocket-Clients mit einem bestimmten Typ.
  *
- * @param {string} type - The type of data being sent.
- * @param {Object} data - The data to send.
+ * @param {string} type - Der Typ der gesendeten Daten.
+ * @param {Object} data - Die zu sendenden Daten.
  */
 function sendWebSocketMessage(type, data) {
     if (wsServer) {
@@ -72,12 +74,12 @@ function sendWebSocketMessage(type, data) {
                 try {
                     client.send(payload);
                 } catch (error) {
-                    errorLogger.error(`Error sending data to WebSocket client: ${error.message}`);
+                    errorLogger.error(`Fehler beim Senden der Daten an WebSocket-Client: ${error.message}`);
                 }
             }
         });
     } else {
-        errorLogger.error("WebSocket server instance is not set.");
+        errorLogger.error("WebSocket-Server-Instanz ist nicht gesetzt.");
     }
 }
 

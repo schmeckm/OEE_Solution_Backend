@@ -1,11 +1,48 @@
 const express = require("express");
+const { v4: uuidv4 } = require("uuid");
+const moment = require("moment-timezone");
+const Joi = require("joi");
+const sanitizeHtml = require("sanitize-html");
+
 const {
   loadMicroStops,
   saveMicroStops,
 } = require("../services/microstopService");
-const moment = require("moment"); // Import moment
 
 const router = express.Router();
+
+// Centralized error handling middleware
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+// Input validation and sanitization function
+const validateAndSanitizeMicroStop = (data) => {
+  // Joi schema for microstops
+  const schema = Joi.object({
+    description: Joi.string().required(),
+    Start: Joi.date().required(),
+    End: Joi.date().required(),
+    machine_id: Joi.string().required(),
+    // Add any other required fields here
+  });
+
+  // Validate input data
+  const { error, value } = schema.validate(data);
+
+  if (error) {
+    throw new Error(error.details[0].message);
+  }
+
+  // Sanitize string inputs
+  value.description = sanitizeHtml(value.description);
+  value.machine_id = sanitizeHtml(value.machine_id);
+
+  return value;
+};
+
+// Utility function for consistent date formatting
+const formatDate = (date) =>
+  date ? moment(date).format("YYYY-MM-DDTHH:mm:ss") : null;
 
 /**
  * @swagger
@@ -29,12 +66,15 @@ const router = express.Router();
  *             schema:
  *               type: array
  *               items:
- *                 type: object
+ *                 $ref: '#/components/schemas/MicroStop'
  */
-router.get("/", (req, res) => {
-  const data = loadMicroStops();
-  res.json(data);
-});
+router.get(
+  "/",
+  asyncHandler(async (req, res) => {
+    const data = await loadMicroStops();
+    res.json(data);
+  })
+);
 
 /**
  * @swagger
@@ -56,19 +96,22 @@ router.get("/", (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               type: object
+ *               $ref: '#/components/schemas/MicroStop'
  *       404:
  *         description: Microstop not found.
  */
-router.get("/:id", (req, res) => {
-  const data = loadMicroStops();
-  const microStop = data.find((d) => d.ID === req.params.id);
-  if (microStop) {
-    res.json(microStop);
-  } else {
-    res.status(404).json({ message: "Microstop not found" });
-  }
-});
+router.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const data = await loadMicroStops();
+    const microStop = data.find((d) => d.ID === req.params.id);
+    if (microStop) {
+      res.json(microStop);
+    } else {
+      res.status(404).json({ message: "Microstop not found" });
+    }
+  })
+);
 
 /**
  * @swagger
@@ -82,48 +125,39 @@ router.get("/:id", (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               ID:
- *                 type: string
- *               description:
- *                 type: string
- *               Start:
- *                 type: string
- *                 format: date-time
- *               End:
- *                 type: string
- *                 format: date-time
+ *             $ref: '#/components/schemas/MicroStopInput'
  *     responses:
  *       201:
  *         description: Microstop added successfully.
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 microstop:
- *                   type: object
+ *               $ref: '#/components/schemas/MicroStop'
+ *       400:
+ *         description: Invalid input data.
  */
-router.post("/", (req, res) => {
-  const data = loadMicroStops();
-  const newData = {
-    ...req.body,
-    Start: req.body.Start
-      ? moment(req.body.Start).format("YYYY-MM-DDTHH:mm:ss")
-      : null,
-    End: req.body.End
-      ? moment(req.body.End).format("YYYY-MM-DDTHH:mm:ss")
-      : null,
-  };
-  data.push(newData);
-  saveMicroStops(data);
-  res
-    .status(201)
-    .json({ message: "Microstop added successfully", microstop: newData });
-});
+router.post(
+  "/",
+  asyncHandler(async (req, res) => {
+    try {
+      const data = await loadMicroStops();
+      const sanitizedData = validateAndSanitizeMicroStop(req.body);
+
+      // Generate a new unique ID
+      sanitizedData.ID = uuidv4();
+
+      // Format date fields
+      sanitizedData.Start = formatDate(sanitizedData.Start);
+      sanitizedData.End = formatDate(sanitizedData.End);
+
+      data.push(sanitizedData);
+      await saveMicroStops(data);
+      res.status(201).json(sanitizedData);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  })
+);
 
 /**
  * @swagger
@@ -144,51 +178,47 @@ router.post("/", (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               description:
- *                 type: string
+ *             $ref: '#/components/schemas/MicroStopInput'
  *     responses:
  *       200:
  *         description: Microstop updated successfully.
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 microstop:
- *                   type: object
+ *               $ref: '#/components/schemas/MicroStop'
+ *       400:
+ *         description: Invalid input data.
  *       404:
  *         description: Microstop not found.
  */
-router.put("/:id", (req, res) => {
-  const data = loadMicroStops();
-  const index = data.findIndex((item) => item.ID === req.params.id);
-  if (index !== -1) {
-    const updatedData = {
-      ...data[index],
-      ...req.body,
-      Start: req.body.Start
-        ? moment(req.body.Start).format("YYYY-MM-DDTHH:mm:ss")
-        : data[index].Start,
-      End: req.body.End
-        ? moment(req.body.End).format("YYYY-MM-DDTHH:mm:ss")
-        : data[index].End,
-    };
-    data[index] = updatedData;
-    saveMicroStops(data);
-    res
-      .status(200)
-      .json({
-        message: "Microstop updated successfully",
-        microstop: updatedData,
-      });
-  } else {
-    res.status(404).json({ message: "Microstop not found" });
-  }
-});
+router.put(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    try {
+      const data = await loadMicroStops();
+      const index = data.findIndex((item) => item.ID === req.params.id);
+
+      if (index !== -1) {
+        const sanitizedData = validateAndSanitizeMicroStop(req.body);
+
+        // Preserve the original ID
+        sanitizedData.ID = req.params.id;
+
+        // Format date fields
+        sanitizedData.Start = formatDate(sanitizedData.Start);
+        sanitizedData.End = formatDate(sanitizedData.End);
+
+        data[index] = { ...data[index], ...sanitizedData };
+        await saveMicroStops(data);
+        res.status(200).json(data[index]);
+      } else {
+        res.status(404).json({ message: "Microstop not found" });
+      }
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  })
+);
 
 /**
  * @swagger
@@ -205,28 +235,25 @@ router.put("/:id", (req, res) => {
  *           type: string
  *         description: The microstop ID.
  *     responses:
- *       200:
+ *       204:
  *         description: Microstop deleted successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
  *       404:
  *         description: Microstop not found.
  */
-router.delete("/:id", (req, res) => {
-  let data = loadMicroStops();
-  const initialLength = data.length;
-  data = data.filter((item) => item.ID !== req.params.id);
-  if (data.length !== initialLength) {
-    saveMicroStops(data);
-    res.status(200).json({ message: "Microstop deleted successfully" });
-  } else {
-    res.status(404).json({ message: "Microstop not found" });
-  }
-});
+router.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const data = await loadMicroStops();
+    const initialLength = data.length;
+    const newData = data.filter((item) => item.ID !== req.params.id);
+
+    if (newData.length !== initialLength) {
+      await saveMicroStops(newData);
+      res.status(204).send();
+    } else {
+      res.status(404).json({ message: "Microstop not found" });
+    }
+  })
+);
 
 module.exports = router;

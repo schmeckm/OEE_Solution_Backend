@@ -1,23 +1,28 @@
 const express = require("express");
-const router = express.Router();
 const { v4: uuidv4 } = require("uuid");
 const moment = require("moment-timezone");
-const Joi = require("joi");
 const sanitizeHtml = require("sanitize-html");
 
+// Importiere die Funktionen aus dem Service
 const {
-  loadProcessOrders,
-  saveProcessOrders,
-} = require("../services/processOrderService");
+  loadAllProcessOrders,
+  loadProcessOrderById,
+  createProcessOrder,
+  updateProcessOrder,
+  deleteProcessOrder,
+} = require('../services/processOrderService');
+
+const router = express.Router();
+
 const { dateSettings } = require("../config/config");
 
-// Utility function for date formatting
+// Utility-Funktion für die Datumsformatierung
 const formatDate = (date) =>
   date
     ? moment(date).tz(dateSettings.timezone).format(dateSettings.dateFormat)
     : null;
 
-// Centralized error handling middleware
+// Zentralisierte Fehlerbehandlungs-Middleware
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -54,40 +59,39 @@ const asyncHandler = (fn) => (req, res, next) =>
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 type: object
+ *               type: object
+ *               properties:
+ *                 totalItems:
+ *                   type: integer
+ *                 currentPage:
+ *                   type: integer
+ *                 totalPages:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ProcessOrder'
  */
 router.get(
   "/",
   asyncHandler(async (req, res) => {
-    let data = await loadProcessOrders(); // Load all process orders
+    let data = await loadAllProcessOrders(); // Lädt alle Prozessaufträge
 
-    // Pagination logic
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-
-    // Format date fields
-    data = data.map((order) => ({
-      ...order,
-      Start: formatDate(order.Start),
-      End: formatDate(order.End),
-      ActualProcessOrderStart: formatDate(order.ActualProcessOrderStart),
-      ActualProcessOrderEnd: formatDate(order.ActualProcessOrderEnd),
-    }));
-
-    const paginatedData = data.slice(startIndex, endIndex);
-
-    res.json({
-      totalItems: data.length,
-      currentPage: page,
-      totalPages: Math.ceil(data.length / limit),
-      data: paginatedData,
+    // Hier wird die komplette Instanz zurückgegeben, ohne sie auf 'dataValues' zu beschränken
+    data = data.map((order) => {
+      return {
+        ...order,  // Gebe die gesamte Instanz zurück (inkl. Metadaten und `dataValues`)
+        Start: formatDate(order.Start),
+        End: formatDate(order.End),
+        ActualProcessOrderStart: formatDate(order.ActualProcessOrderStart),
+        ActualProcessOrderEnd: formatDate(order.ActualProcessOrderEnd),
+      };
     });
+
+    res.json(data);  // Gebe die gesamten Prozessaufträge zurück
   })
 );
+
 
 /**
  * @swagger
@@ -108,7 +112,7 @@ router.get(
  *         required: false
  *         schema:
  *           type: boolean
- *         description: If true, mark the filtered orders with an 'X'.
+ *         description: If true, filter only process orders with status REL.
  *     responses:
  *       200:
  *         description: A list of process orders with status REL for the specified machine.
@@ -117,41 +121,92 @@ router.get(
  *             schema:
  *               type: array
  *               items:
- *                 type: object
+ *                 $ref: '#/components/schemas/ProcessOrder'
  */
 router.get(
   "/rel",
   asyncHandler(async (req, res) => {
-    const mark = req.query.mark === "true";
+    const mark = req.query.mark === "true";  // Wenn mark=true, dann filtere nach 'REL', andernfalls nach anderen Status
     const machineId = req.query.machineId;
 
-    let data = await loadProcessOrders();
+    try {
+      let data = await loadAllProcessOrders();  // Lädt alle Prozessaufträge
 
-    // Filter process orders by status REL and optionally by machineId
-    data = data.filter(
-      (order) =>
-        order.ProcessOrderStatus === "REL" &&
-        (!machineId || order.machine_id === machineId)
-    );
+      if (!data || data.length === 0) {
+        return res.status(404).json({ message: "No process orders found." });
+      }
 
-    // Optionally mark the filtered orders
-    if (mark) {
+      // Filtert nach Status 'REL' oder anderen Status, basierend auf dem Wert von 'mark'
+      if (mark) {
+        data = data.filter((order) => order.processorderstatus && order.processorderstatus.trim().toUpperCase() === "REL");
+      } else {
+        data = data.filter((order) => order.processorderstatus && order.processorderstatus.trim().toUpperCase() !== "REL");
+      }
+
+      if (machineId) {
+        data = data.filter((order) => order.workcenter_id === machineId);  // Filtere nach Maschinen-ID
+      }
+
+      // Formatieren der Datumsfelder und Rückgabe der reinen Daten ohne Metadaten
       data = data.map((order) => ({
-        ...order,
-        marked: "X",
+        ...order.dataValues,  // Greife auf `dataValues` zu
+        Start: formatDate(order.Start),
+        End: formatDate(order.End),
+        ActualProcessOrderStart: formatDate(order.ActualProcessOrderStart),
+        ActualProcessOrderEnd: formatDate(order.ActualProcessOrderEnd),
       }));
+
+      res.json(data);  // Nur die 'data' zurückgeben
+    } catch (error) {
+      console.error(`Error fetching process orders: ${error.message}`);
+      res.status(500).json({ message: `Error fetching process orders: ${error.message}` });
     }
+  })
+);
 
-    // Format date fields
-    data = data.map((order) => ({
-      ...order,
-      Start: formatDate(order.Start),
-      End: formatDate(order.End),
-      ActualProcessOrderStart: formatDate(order.ActualProcessOrderStart),
-      ActualProcessOrderEnd: formatDate(order.ActualProcessOrderEnd),
-    }));
+/**
+ * @swagger
+ * /processorders/{id}:
+ *   get:
+ *     summary: Get a process order by ID
+ *     tags: [Process Orders]
+ *     description: Retrieve a process order by its ID.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The process order UUID (order_id).
+ *     responses:
+ *       200:
+ *         description: The process order with the specified ID.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ProcessOrder'
+ *       404:
+ *         description: Process order not found.
+ */
+router.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;  // Hole die ID aus den URL-Parametern
 
-    res.json(data);
+    try {
+      // Lade den Prozessauftrag anhand der ID
+      const processOrder = await loadProcessOrderById(id);
+
+      if (!processOrder) {
+        return res.status(404).json({ message: `Process order with ID ${id} not found` });
+      }
+
+      // Gebe nur die Daten des Prozessauftrags ohne zusätzliche Metadaten zurück
+      res.json(processOrder.dataValues);  // Nur die `dataValues` zurückgeben
+    } catch (error) {
+      console.error(`Error fetching process order with ID ${id}: ${error.message}`);
+      res.status(500).json({ message: `Error fetching process order with ID ${id}: ${error.message}` });
+    }
   })
 );
 
@@ -182,129 +237,24 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    // Input validation schema
-    const schema = Joi.object({
-      description: Joi.string().required(),
-      Start: Joi.date().required(),
-      End: Joi.date().required(),
-      ActualProcessOrderStart: Joi.date().optional().allow(null),
-      ActualProcessOrderEnd: Joi.date().optional().allow(null),
-      ProcessOrderStatus: Joi.string().required(),
-      machine_id: Joi.string().required(),
-      // Add other required fields here
-    });
+    const newData = {
+      ...req.body,
+      order_id: uuidv4(),
+      start_date: formatDate(req.body.start_date),
+      end_date: formatDate(req.body.end_date),
+      actualprocessorderstart: formatDate(req.body.actualprocessorderstart),
+      actualprocessorderend: formatDate(req.body.actualprocessorderend),
+    };
 
-    const { error, value } = schema.validate(req.body);
+    try {
+      const createdOrder = await createProcessOrder(newData);
 
-    if (error) {
-      return res.status(400).json({ message: error.details[0].message });
-    }
-
-    const data = await loadProcessOrders();
-    const newData = value;
-
-    // Sanitize inputs
-    newData.description = sanitizeHtml(newData.description);
-    newData.machine_id = sanitizeHtml(newData.machine_id);
-
-    // Generate a new UUID for order_id
-    newData.order_id = uuidv4();
-
-    // Format date fields
-    newData.Start = formatDate(newData.Start);
-    newData.End = formatDate(newData.End);
-    newData.ActualProcessOrderStart = formatDate(newData.ActualProcessOrderStart);
-    newData.ActualProcessOrderEnd = formatDate(newData.ActualProcessOrderEnd);
-
-    data.push(newData);
-    await saveProcessOrders(data);
-    res.status(201).json({ message: "Process order added successfully" });
-  })
-);
-
-/**
- * @swagger
- * /processorders/{id}:
- *   put:
- *     summary: Update an existing process order
- *     tags: [Process Orders]
- *     description: Update the details of an existing process order.
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The process order UUID (order_id).
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/ProcessOrder'
- *     responses:
- *       200:
- *         description: Process order updated successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       404:
- *         description: Process order not found.
- */
-router.put(
-  "/:id",
-  asyncHandler(async (req, res) => {
-    // Input validation schema
-    const schema = Joi.object({
-      description: Joi.string().required(),
-      Start: Joi.date().required(),
-      End: Joi.date().required(),
-      ActualProcessOrderStart: Joi.date().optional().allow(null),
-      ActualProcessOrderEnd: Joi.date().optional().allow(null),
-      ProcessOrderStatus: Joi.string().required(),
-      machine_id: Joi.string().required(),
-      // Add other required fields here
-    });
-
-    const { error, value } = schema.validate(req.body);
-
-    if (error) {
-      return res.status(400).json({ message: error.details[0].message });
-    }
-
-    const data = await loadProcessOrders();
-    const id = req.params.id;
-    const index = data.findIndex((item) => item.order_id === id);
-
-    if (index !== -1) {
-      const updatedData = value;
-
-      // Sanitize inputs
-      updatedData.description = sanitizeHtml(updatedData.description);
-      updatedData.machine_id = sanitizeHtml(updatedData.machine_id);
-
-      // Preserve the original order_id
-      updatedData.order_id = id;
-
-      // Format date fields
-      updatedData.Start = formatDate(updatedData.Start);
-      updatedData.End = formatDate(updatedData.End);
-      updatedData.ActualProcessOrderStart = formatDate(
-        updatedData.ActualProcessOrderStart
-      );
-      updatedData.ActualProcessOrderEnd = formatDate(
-        updatedData.ActualProcessOrderEnd
-      );
-
-      data[index] = updatedData;
-      await saveProcessOrders(data);
-      res.status(200).json({ message: "Process order updated successfully" });
-    } else {
-      res.status(404).json({ message: "Process order not found" });
+      res.status(201).json({
+        message: "Process order added successfully",
+        order_id: createdOrder.order_id,
+      });
+    } catch (error) {
+      res.status(500).json({ message: `Error creating process order: ${error.message}` });
     }
   })
 );
@@ -332,17 +282,25 @@ router.put(
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
-    const data = await loadProcessOrders();
-    const id = req.params.id;
-    const newData = data.filter((item) => item.order_id !== id);
+    const { id } = req.params;  // Hole die ID aus den URL-Parametern
 
-    if (data.length !== newData.length) {
-      await saveProcessOrders(newData);
-      res.status(204).send();
-    } else {
-      res.status(404).json({ message: "Process order not found" });
+    try {
+      // Lösche den Prozessauftrag anhand der ID
+      const result = await deleteProcessOrder(id);
+
+      if (!result) {
+        return res.status(404).json({ message: `Process order with ID ${id} not found` });
+      }
+
+      // Erfolgreiches Löschen, keine Rückgabe notwendig
+      res.status(204).send();  // 204 bedeutet "Erfolgreiches Löschen ohne Rückgabewerte"
+    } catch (error) {
+      console.error(`Error deleting process order with ID ${id}: ${error.message}`);
+      res.status(500).json({ message: `Error deleting process order: ${error.message}` });
     }
   })
 );
+
+
 
 module.exports = router;

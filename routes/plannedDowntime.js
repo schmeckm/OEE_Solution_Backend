@@ -1,127 +1,111 @@
 const express = require("express");
-const {
-    loadPlannedDowntime,
-    savePlannedDowntime,
-} = require("../services/plannedDowntimeService");
-const moment = require("moment");
 const { v4: uuidv4 } = require("uuid");
+const moment = require("moment-timezone");
+
+const { loadPlannedDowntime, loadPlannedDowntimeById, createPlannedDowntime, updatePlannedDowntime, deletePlannedDowntime } = require("../services/plannedDowntimeService");
 
 const router = express.Router();
 
-// Utility function to calculate duration in minutes
-function calculateDurationInMinutes(start, end) {
-    const startTime = moment(start);
-    const endTime = moment(end);
-    return endTime.diff(startTime, "minutes");
-}
+// Fehlerbehandlung
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
 
-// Data validation utility
-function validateDowntime(downtime) {
-    const requiredFields = ["Start", "End", "ProcessOrderNumber", "machine_id"];
-    requiredFields.forEach((field) => {
-        if (!downtime[field]) {
-            throw new Error(`Missing required field: ${field}`);
-        }
-    });
-}
+// Utility-Funktion zur Berechnung der Dauer in Minuten
+const calculateDurationInMinutes = (start, end) => {
+  const startTime = moment(start);
+  const endTime = moment(end);
+  return endTime.diff(startTime, "minutes");
+};
+
+// Utility-Funktion zur Datumsformatierung
+const formatDate = (date) =>
+  date ? moment(date).format("YYYY-MM-DDTHH:mm:ss") : null;
 
 /**
  * @swagger
  * tags:
  *   name: Planned Downtime
- *   description: API for managing planned downtimes
+ *   description: API zur Verwaltung geplanter Stillstandszeiten
  */
 
 /**
  * @swagger
  * /planneddowntime:
  *   get:
- *     summary: Retrieve all planned downtimes
+ *     summary: Alle geplanten Stillstandszeiten abrufen
  *     tags: [Planned Downtime]
  *     responses:
  *       200:
- *         description: A list of planned downtimes
+ *         description: Eine Liste von geplanten Stillstandszeiten
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 type: object
+ *                 $ref: '#/components/schemas/PlannedDowntime'
  */
-router.get("/", async (req, res) => {
-    try {
-        console.log("[DEBUG] Fetching all planned downtimes...");
-        let data = await loadPlannedDowntime();
-        data = data.map((downtime) => ({
-            ...downtime,
-            durationInMinutes: calculateDurationInMinutes(downtime.Start, downtime.End),
-        }));
-        console.log("[DEBUG] Retrieved planned downtimes:", data);
-        res.json(data);
-    } catch (error) {
-        console.error("[ERROR] Failed to fetch planned downtimes:", error.message);
-        res.status(500).json({ message: "Error loading planned downtimes" });
-    }
-});
+router.get("/", asyncHandler(async (req, res) => {
+  try {
+    const data = await loadPlannedDowntime();
+    // Gebe nur die reinen Daten ohne Metadaten zurück
+    const sanitizedData = data.map(item => item.dataValues);
+    res.json(sanitizedData);
+  } catch (error) {
+    console.error("Fehler beim Laden der geplanten Stillstandszeiten:", error.stack);
+    res.status(500).json({ message: "Fehler beim Laden der geplanten Stillstandszeiten", error: error.stack });
+  }
+}));
 
 /**
  * @swagger
  * /planneddowntime:
  *   post:
- *     summary: Add a new planned downtime
+ *     summary: Eine neue geplante Stillstandszeit hinzufügen
  *     tags: [Planned Downtime]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               Start:
- *                 type: string
- *               End:
- *                 type: string
- *               ProcessOrderNumber:
- *                 type: string
- *               machine_id:
- *                 type: string
+ *             $ref: '#/components/schemas/PlannedDowntimeInput'
  *     responses:
  *       201:
- *         description: Planned downtime added successfully
+ *         description: Geplante Stillstandszeit erfolgreich hinzugefügt
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PlannedDowntime'
  *       400:
- *         description: Validation error or missing fields
+ *         description: Ungültige Eingabedaten
  */
-router.post("/", async (req, res) => {
-    try {
-        console.log("[DEBUG] Adding new planned downtime...");
-        const data = await loadPlannedDowntime();
 
-        const newData = { ...req.body, ID: uuidv4() };
-        validateDowntime(newData);
+router.post("/", asyncHandler(async (req, res) => {
+  try {
+    // Eingabedaten validieren und säubern
+    const sanitizedData = req.body;
 
-        // Calculate duration in minutes
-        newData.durationInMinutes = calculateDurationInMinutes(newData.Start, newData.End);
+    // ID generieren
+    sanitizedData.ID = uuidv4();
+    sanitizedData.Start = formatDate(sanitizedData.Start);
+    sanitizedData.End = formatDate(sanitizedData.End);
+    sanitizedData.durationInMinutes = calculateDurationInMinutes(sanitizedData.Start, sanitizedData.End);
 
-        data.push(newData);
-        await savePlannedDowntime(data);
+    // Speichern der neuen geplanten Stillstandszeit
+    const savedData = await createPlannedDowntime(sanitizedData);
 
-        console.log("[DEBUG] New planned downtime added:", newData);
-        res.status(201).json({
-            message: "Planned downtime added successfully",
-            ID: newData.ID,
-            durationInMinutes: newData.durationInMinutes,
-        });
-    } catch (error) {
-        console.error("[ERROR] Failed to add planned downtime:", error.message);
-        res.status(400).json({ message: error.message });
-    }
-});
+    // Gebe die vollständigen, gesäuberten Daten zurück
+    res.status(201).json(savedData.dataValues);  // Hier wird die Antwort mit den Daten zurückgegeben
+  } catch (error) {
+    res.status(400).json({ message: `Fehler beim Erstellen der geplanten Stillstandszeit: ${error.message}` });
+  }
+}));
+
 
 /**
  * @swagger
  * /planneddowntime/{id}:
  *   put:
- *     summary: Update a planned downtime by ID
+ *     summary: Eine geplante Stillstandszeit aktualisieren
  *     tags: [Planned Downtime]
  *     parameters:
  *       - in: path
@@ -129,65 +113,51 @@ router.post("/", async (req, res) => {
  *         required: true
  *         schema:
  *           type: string
+ *         description: Die ID der geplanten Stillstandszeit
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               Start:
- *                 type: string
- *               End:
- *                 type: string
- *               ProcessOrderNumber:
- *                 type: string
- *               machine_id:
- *                 type: string
+ *             $ref: '#/components/schemas/PlannedDowntimeInput'
  *     responses:
  *       200:
- *         description: Planned downtime updated successfully
+ *         description: Geplante Stillstandszeit erfolgreich aktualisiert
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PlannedDowntime'
+ *       400:
+ *         description: Ungültige Eingabedaten
  *       404:
- *         description: Planned downtime not found
+ *         description: Geplante Stillstandszeit nicht gefunden
  */
-router.put("/:id", async (req, res) => {
-    try {
-        const id = req.params.id;
-        console.log("[DEBUG] Updating planned downtime with ID:", id);
-        console.log("[DEBUG] Incoming Payload:", req.body);
+router.put("/:id", asyncHandler(async (req, res) => {
+  const { id } = req.params;
 
-        const data = await loadPlannedDowntime();
-        const index = data.findIndex((item) => item.ID && item.ID.toString() === id.toString());
+  const updatedData = {
+    ...req.body,
+    Start: formatDate(req.body.Start),
+    End: formatDate(req.body.End),
+    durationInMinutes: calculateDurationInMinutes(req.body.Start, req.body.End),
+  };
 
-        if (index !== -1) {
-            const updatedData = { ...data[index], ...req.body, ID: id };
-
-            // Recalculate duration in minutes
-            updatedData.durationInMinutes = calculateDurationInMinutes(updatedData.Start, updatedData.End);
-
-            data[index] = updatedData;
-            await savePlannedDowntime(data);
-
-            console.log("[DEBUG] Updated planned downtime:", updatedData);
-            res.status(200).json({
-                message: "Planned downtime updated successfully",
-                updatedData,
-            });
-        } else {
-            console.error("[ERROR] Planned downtime not found for ID:", id);
-            res.status(404).json({ message: "Planned downtime not found" });
-        }
-    } catch (error) {
-        console.error("[ERROR] Failed to update planned downtime:", error.message);
-        res.status(500).json({ message: "Error updating planned downtime" });
+  try {
+    const updatedPlannedDowntime = await updatePlannedDowntime(id, updatedData);
+    if (!updatedPlannedDowntime) {
+      return res.status(404).json({ message: "Geplante Stillstandszeit nicht gefunden" });
     }
-});
+    res.status(200).json(updatedPlannedDowntime.dataValues);  // Rückgabe der aktualisierten Daten
+  } catch (error) {
+    res.status(500).json({ message: `Fehler beim Aktualisieren der geplanten Stillstandszeit: ${error.message}` });
+  }
+}));
 
 /**
  * @swagger
  * /planneddowntime/{id}:
- *   delete:
- *     summary: Delete a planned downtime by ID
+ *   get:
+ *     summary: Abrufen einer geplanten Stillstandszeit nach ID
  *     tags: [Planned Downtime]
  *     parameters:
  *       - in: path
@@ -195,32 +165,85 @@ router.put("/:id", async (req, res) => {
  *         required: true
  *         schema:
  *           type: string
+ *         description: Die ID der geplanten Stillstandszeit
  *     responses:
  *       200:
- *         description: Planned downtime deleted successfully
+ *         description: Die geplante Stillstandszeit mit der angegebenen ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PlannedDowntime'
  *       404:
- *         description: Planned downtime not found
+ *         description: Geplante Stillstandszeit nicht gefunden
  */
-router.delete("/:id", async (req, res) => {
-    try {
-        const id = req.params.id;
-        console.log("[DEBUG] Deleting planned downtime with ID:", id);
+router.get("/:id", asyncHandler(async (req, res) => {
+  const { id } = req.params;  // Hole die ID aus den URL-Parametern
+  console.log("Suchst du nach der geplanten Stillstandszeit mit ID: ", id);
 
-        const data = await loadPlannedDowntime();
-        const filteredData = data.filter((item) => item.ID && item.ID.toString() !== id.toString());
+  try {
+    // Lade die geplante Stillstandszeit anhand der ID
+    const plannedDowntime = await loadPlannedDowntimeById(id);
 
-        if (filteredData.length < data.length) {
-            await savePlannedDowntime(filteredData);
-            console.log("[DEBUG] Remaining planned downtimes:", filteredData);
-            res.status(200).json({ message: "Planned downtime deleted successfully" });
-        } else {
-            console.error("[ERROR] Planned downtime not found for ID:", id);
-            res.status(404).json({ message: "Planned downtime not found" });
-        }
-    } catch (error) {
-        console.error("[ERROR] Failed to delete planned downtime:", error.message);
-        res.status(500).json({ message: "Error deleting planned downtime" });
+    if (!plannedDowntime) {
+      return res.status(404).json({ message: `Geplante Stillstandszeit mit ID ${id} nicht gefunden` });
     }
-});
+
+    // Gebe nur die Daten der geplanten Stillstandszeit ohne zusätzliche Metadaten zurück
+    const sanitizedData = plannedDowntime.dataValues;  // Nur die reinen Daten zurückgeben
+    console.log("Geplante Stillstandszeit gefunden: ", sanitizedData);  // Debugging-Ausgabe
+
+    if (!sanitizedData) {
+      console.error("Die Daten der geplanten Stillstandszeit sind leer!");
+      return res.status(500).json({ message: "Die Daten der geplanten Stillstandszeit sind leer!" });
+    }
+
+    res.json(sanitizedData);  // Nur die `dataValues` zurückgeben
+  } catch (error) {
+    console.error(`Fehler beim Abrufen der geplanten Stillstandszeit mit ID ${id}: ${error.message}`);
+    res.status(500).json({ message: `Fehler beim Abrufen der geplanten Stillstandszeit mit ID ${id}: ${error.message}` });
+  }
+}));
+
+
+
+
+/**
+ * @swagger
+ * /planneddowntime/{id}:
+ *   delete:
+ *     summary: Eine geplante Stillstandszeit löschen
+ *     tags: [Planned Downtime]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Die ID der geplanten Stillstandszeit
+ *     responses:
+ *       204:
+ *         description: Geplante Stillstandszeit erfolgreich gelöscht
+ *       404:
+ *         description: Geplante Stillstandszeit nicht gefunden
+ */
+// DELETE-Route zum Löschen der geplanten Stillstandszeit
+router.delete("/:id", asyncHandler(async (req, res) => {
+  const { id } = req.params;  // Hole die ID aus den URL-Parametern
+
+  try {
+    // Lösche die geplante Stillstandszeit
+    const result = await deletePlannedDowntime(id);
+
+    if (result) {
+      res.status(204).send();  // Erfolgreiches Löschen
+    } else {
+      res.status(404).json({ message: "Geplante Stillstandszeit nicht gefunden" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: `Fehler beim Löschen der geplanten Stillstandszeit: ${error.message}` });
+  }
+}));
+
+
 
 module.exports = router;

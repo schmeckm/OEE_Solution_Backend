@@ -1,8 +1,40 @@
 const express = require('express');
-const moment = require('moment'); // Make sure this is present
+const moment = require('moment-timezone'); // Ensure moment-timezone is used for consistency
+const Joi = require('joi');
+const sanitizeHtml = require('sanitize-html');
+
 const { aggregateMicrostopsByProcessOrder } = require('../services/microstopAggregationByProcessOrder');
 
 const router = express.Router();
+
+// Centralized error handling middleware
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+// Input validation and sanitization function
+const validateAndSanitizeQuery = (query) => {
+  // Joi schema for query parameters
+  const schema = Joi.object({
+    processOrderNumber: Joi.string().optional(),
+    startDate: Joi.date().iso().optional(),
+    endDate: Joi.date().iso().optional(),
+  }).or('processOrderNumber', 'startDate'); // At least one must be provided
+
+  // Validate input data
+  const { error, value } = schema.validate(query);
+
+  if (error) {
+    throw new Error(`Invalid query parameters: ${error.details[0].message}`);
+  }
+
+  // Sanitize string inputs
+  if (value.processOrderNumber) {
+    value.processOrderNumber = sanitizeHtml(value.processOrderNumber);
+  }
+
+  return value;
+};
+
 /**
  * @swagger
  * tags:
@@ -22,19 +54,19 @@ const router = express.Router();
  *         name: processOrderNumber
  *         schema:
  *           type: string
- *         description: "The process order number to filter by."
+ *         description: The process order number to filter by.
  *       - in: query
  *         name: startDate
  *         schema:
  *           type: string
  *           format: date-time
- *         description: "Start date to filter microstops (format: YYYY-MM-DDTHH:mm:ssZ)."
+ *         description: Start date to filter microstops (ISO 8601 format).
  *       - in: query
  *         name: endDate
  *         schema:
  *           type: string
  *           format: date-time
- *         description: "End date to filter microstops (format: YYYY-MM-DDTHH:mm:ssZ)."
+ *         description: End date to filter microstops (ISO 8601 format).
  *     responses:
  *       200:
  *         description: A list of aggregated microstops.
@@ -44,8 +76,17 @@ const router = express.Router();
  *               type: object
  *               additionalProperties:
  *                 type: integer
+ *       400:
+ *         description: Invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
  *       404:
- *         description: Microstop not found
+ *         description: Microstops not found
  *         content:
  *           application/json:
  *             schema:
@@ -63,24 +104,38 @@ const router = express.Router();
  *                 message:
  *                   type: string
  */
-router.get('/', async(req, res) => {
-    const { processOrderNumber, startDate, endDate } = req.query;
-
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
     try {
-        const aggregatedData = await aggregateMicrostopsByProcessOrder(
-            processOrderNumber,
-            startDate ? moment(startDate).toDate() : null,
-            endDate ? moment(endDate).toDate() : null
-        );
+      // Validate and sanitize query parameters
+      const { processOrderNumber, startDate, endDate } = validateAndSanitizeQuery(req.query);
 
-        if (Object.keys(aggregatedData).length === 0) {
-            return res.status(404).json({ message: 'Microstop not found' });
-        }
+      // Convert dates to moment objects
+      const start = startDate ? moment.tz(startDate, moment.tz.guess()).toDate() : null;
+      const end = endDate ? moment.tz(endDate, moment.tz.guess()).toDate() : null;
 
-        res.json(aggregatedData);
+      // Call the service function
+      const aggregatedData = await aggregateMicrostopsByProcessOrder(
+        processOrderNumber,
+        start,
+        end
+      );
+
+      if (!aggregatedData || Object.keys(aggregatedData).length === 0) {
+        return res.status(404).json({ message: 'No microstops found' });
+      }
+
+      res.json(aggregatedData);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+      if (error.message.startsWith('Invalid query parameters')) {
+        res.status(400).json({ message: error.message });
+      } else {
+        console.error('[ERROR]', error);
+        res.status(500).json({ message: 'Server error' });
+      }
     }
-});
+  })
+);
 
 module.exports = router;

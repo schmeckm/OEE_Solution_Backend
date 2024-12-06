@@ -1,51 +1,70 @@
+const Joi = require('joi');
+const sanitizeHtml = require('sanitize-html');
+
 /**
- * Middleware to validate the OEE data in the request body.
- * Ensures all necessary fields are present and correctly formatted.
+ * Middleware zur Validierung und Säuberung der OEE-Daten im Request-Body.
+ * Stellt sicher, dass alle notwendigen Felder vorhanden und korrekt formatiert sind.
  *
- * @param {Object} req - The request object.
- * @param {Object} res - The response object.
- * @param {Function} next - The next middleware function.
+ * @param {Object} req - Das Request-Objekt.
+ * @param {Object} res - Das Response-Objekt.
+ * @param {Function} next - Die nächste Middleware-Funktion.
  */
 function validateOEEData(req, res, next) {
-    // Destructure the expected fields from the request body
-    const {
-        plannedProductionQuantity,
-        Runtime,
-        actualPerformance,
-        targetPerformance,
-        ActualProductionYield,
-        ActualProductionQuantity,
-    } = req.body;
+  // Definiere das Joi-Schema
+  const schema = Joi.object({
+    plannedProductionQuantity: Joi.number().required(),
+    Runtime: Joi.number().required(),
+    actualPerformance: Joi.number().required(),
+    targetPerformance: Joi.number().required(),
+    ActualProductionYield: Joi.number().required(),
+    ActualProductionQuantity: Joi.number().required(),
+    // Weitere Felder hinzufügen, falls erforderlich
+  });
 
-    // Check if any of the required fields are missing or falsy
-    if (!plannedProductionQuantity ||
-        !Runtime ||
-        !actualPerformance ||
-        !targetPerformance ||
-        !ActualProductionYield ||
-        !actualProductionQuantity
-    ) {
-        return res.status(400).json({ message: "Invalid data format" }); // Return a 400 error if validation fails
-    }
+  // Validiere den Request-Body gegen das Schema
+  const { error, value } = schema.validate(req.body);
 
-    next(); // If validation passes, proceed to the next middleware or route handler
+  if (error) {
+    // Wenn die Validierung fehlschlägt, gib einen 400 Bad Request Fehler zurück
+    return res.status(400).json({ message: `Ungültige Daten: ${error.details[0].message}` });
+  }
+
+  // Eingaben säubern
+  // Da alle Felder numerisch sind, ist eine Säuberung nicht zwingend erforderlich
+  // Falls String-Felder vorhanden sind, sollten diese mit sanitizeHtml gesäubert werden
+  // Beispiel:
+  // value.someStringField = sanitizeHtml(value.someStringField);
+
+  // Ersetze den Request-Body durch die validierten und gesäuberten Daten
+  req.body = value;
+
+  next(); // Fahre mit der nächsten Middleware oder dem Route-Handler fort
 }
 
 /**
- * Middleware to handle errors.
- * Logs the error stack to the console and sends a 500 response with the error message.
+ * Middleware zum Fehlerhandling.
+ * Loggt den Fehler-Stack in der Konsole und sendet eine entsprechende Antwort.
  *
- * @param {Object} err - The error object.
- * @param {Object} req - The request object.
- * @param {Object} res - The response object.
- * @param {Function} next - The next middleware function.
+ * @param {Object} err - Das Error-Objekt.
+ * @param {Object} req - Das Request-Objekt.
+ * @param {Object} res - Das Response-Objekt.
+ * @param {Function} next - Die nächste Middleware-Funktion.
  */
 function handleErrors(err, req, res, next) {
-    console.error(err.stack); // Log the error stack to the console
-    res
-        .status(500)
-        .json({ message: "Internal server error", error: err.message }); // Send a 500 response with the error message
+  console.error(err.stack); // Logge den Fehler-Stack zur Fehlerbehebung
+
+  // Setze den Standard-Statuscode und die Nachricht
+  let statusCode = 500;
+  let message = 'Interner Serverfehler';
+
+  // Behandle spezifische Fehlertypen
+  if (err.isJoi) {
+    // Joi-Validierungsfehler
+    statusCode = 400;
+    message = `Ungültige Daten: ${err.message}`;
+  }
+
+  res.status(statusCode).json({ message, error: err.message }); // Sende die Fehlerantwort
 }
 
-// Export the middleware functions for use in other files
 module.exports = { validateOEEData, handleErrors };

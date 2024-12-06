@@ -1,5 +1,4 @@
 const { defaultLogger, errorLogger } = require('../utils/logger');
-
 /**
  * Handles WebSocket connections and message processing.
  * 

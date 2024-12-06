@@ -1,67 +1,117 @@
 const express = require("express");
 const router = express.Router();
+const Joi = require("joi");
+const sanitizeHtml = require("sanitize-html");
+const moment = require("moment-timezone"); // Stellen Sie sicher, dass moment-timezone installiert ist
+
 const {
   aggregateMicrostopsByMachine,
 } = require("../services/microstopAggregationByMachine");
 const { defaultLogger, errorLogger } = require("../utils/logger");
-const moment = require("moment-timezone"); // Ensure moment-timezone is installed
+
+/**
+ * @swagger
+ * tags:
+ *   name: Microstop Aggregation
+ *   description: API zur Aggregation von Microstop-Daten
+ */
+
 /**
  * @swagger
  * /microstop-aggregation/machine:
  *   get:
- *     summary: Get aggregated microstop data, optionally filtered by machine ID and date range
+ *     summary: Aggregierte Microstop-Daten abrufen, optional gefiltert nach Maschinen-ID und Datumsbereich
  *     tags: [Microstop Aggregation]
- *     description: Retrieves an aggregation of microstop data, optionally filtered by a specific machine ID and date range.
+ *     description: Ruft eine Aggregation von Microstop-Daten ab, optional gefiltert nach einer bestimmten Maschinen-ID und einem Datumsbereich.
  *     parameters:
  *       - in: query
  *         name: machine_id
  *         required: false
- *         description: The unique identifier of the machine to filter the microstops by.
+ *         description: Die eindeutige Kennung der Maschine, nach der die Microstops gefiltert werden sollen.
  *         schema:
  *           type: string
  *       - in: query
  *         name: start
  *         required: false
- *         description: Start date for filtering microstops, in ISO 8601 format.
+ *         description: Startdatum für die Filterung der Microstops, im ISO 8601 Format.
  *         schema:
  *           type: string
  *           format: date-time
  *       - in: query
  *         name: end
  *         required: false
- *         description: End date for filtering microstops, in ISO 8601 format.
+ *         description: Enddatum für die Filterung der Microstops, im ISO 8601 Format.
  *         schema:
  *           type: string
  *           format: date-time
  *     responses:
  *       200:
- *         description: Successfully retrieved aggregated microstop data.
+ *         description: Erfolgreich aggregierte Microstop-Daten abgerufen.
+ *       400:
+ *         description: Ungültige Abfrageparameter.
  *       404:
- *         description: No data found for the given filters.
+ *         description: Keine Daten für die gegebenen Filter gefunden.
  *       500:
- *         description: Internal server error.
+ *         description: Interner Serverfehler.
  */
 
-router.get("/", async (req, res) => {
-  const { machine_id, start, end } = req.query;
-  const startDate = start ? moment(start).toISOString() : null;
-  const endDate = end ? moment(end).toISOString() : null;
+// Zentralisiertes Fehlerhandling
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
 
-  try {
-    const result = await aggregateMicrostopsByMachine(
-      machine_id,
-      startDate,
-      endDate
-    );
-    if (!result || Object.keys(result).length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No data found for the given filters." });
-    }
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ message: "Internal server error" });
+// Eingabevalidierung und -säuberung
+const validateAndSanitizeQuery = (query) => {
+  const schema = Joi.object({
+    machine_id: Joi.string().optional(),
+    start: Joi.date().iso().optional(),
+    end: Joi.date().iso().optional(),
+  });
+
+  const { error, value } = schema.validate(query);
+
+  if (error) {
+    throw new Error(`Ungültige Abfrageparameter: ${error.details[0].message}`);
   }
-});
+
+  // Eingaben säubern
+  if (value.machine_id) {
+    value.machine_id = sanitizeHtml(value.machine_id);
+  }
+
+  return value;
+};
+
+router.get(
+  "/",
+  asyncHandler(async (req, res) => {
+    try {
+      const { machine_id, start, end } = validateAndSanitizeQuery(req.query);
+
+      const startDate = start ? moment.tz(start, moment.tz.guess()).toISOString() : null;
+      const endDate = end ? moment.tz(end, moment.tz.guess()).toISOString() : null;
+
+      const result = await aggregateMicrostopsByMachine(
+        machine_id,
+        startDate,
+        endDate
+      );
+
+      if (!result || Object.keys(result).length === 0) {
+        return res
+          .status(404)
+          .json({ message: "Keine Daten für die gegebenen Filter gefunden." });
+      }
+
+      res.json(result);
+    } catch (error) {
+      if (error.message.startsWith("Ungültige Abfrageparameter")) {
+        res.status(400).json({ message: error.message });
+      } else {
+        errorLogger.error("[ERROR] Interner Serverfehler:", error);
+        res.status(500).json({ message: "Interner Serverfehler" });
+      }
+    }
+  })
+);
 
 module.exports = router;

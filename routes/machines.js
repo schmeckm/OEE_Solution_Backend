@@ -1,151 +1,84 @@
 const express = require('express');
-const { loadMachines, saveMachines } = require('../services/machineService');
 const { v4: uuidv4 } = require('uuid');
-
+const { loadWorkCenters, updateWorkCenter, loadWorkCenterById, createWorkCenter, deleteWorkCenter } = require('../services/workCenterService'); 
 const router = express.Router();
-
+const { dateSettings } = require("../config/config");
 /**
  * @swagger
- * tags:
- *   name: Machines
- *   description: API for managing machines
- */
-
-/**
- * @swagger
- * /machines:
+ * /workcenters:
  *   get:
- *     summary: Get all machines
- *     tags: [Machines]
- *     description: Retrieve a list of all machines.
+ *     summary: Get all work centers
+ *     tags: [Work Centers]
+ *     description: Retrieve a list of all work centers.
  *     responses:
  *       200:
- *         description: A list of machines.
+ *         description: A list of work centers.
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 type: object
- *                 properties:
- *                   ID:
- *                     type: string
- *                     description: Unique identifier for the machine.
- *                   Plant:
- *                     type: string
- *                     description: The plant location.
- *                   area:
- *                     type: string
- *                     description: The area within the plant.
- *                   machineGroup:
- *                     type: string
- *                     description: The machine group.
- *                   name:
- *                     type: string
- *                     description: The name of the machine.
- *                   description:
- *                     type: string
- *                     description: A description of the machine.
- *                   OEE:
- *                     type: boolean
- *                     description: Whether OEE is enabled for the machine.
+ *                 $ref: '#/components/schemas/WorkCenter'
  */
-router.get('/', (req, res) => {
-    const machines = loadMachines();
-    res.json(machines);
+router.get('/', async (req, res) => {
+  try {
+    const workCenters = await loadWorkCenters();  // Rufe die Work Centers aus dem Service ab
+    res.json(workCenters);
+  } catch (error) {
+    res.status(500).json({ message: error.message });  // Fehlerbehandlung direkt hier
+  }
 });
 
 /**
  * @swagger
- * /machines/{id}:
+ * /workcenters/{id}:
  *   get:
- *     summary: Get a specific machine
- *     tags: [Machines]
- *     description: Retrieve a single machine by its unique ID.
+ *     summary: Get a specific work center by ID
+ *     tags: [Work Centers]
+ *     description: Retrieve a work center based on its unique ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The unique ID of the machine.
+ *         description: The unique ID of the work center.
  *     responses:
  *       200:
- *         description: A machine object.
+ *         description: A work center object.
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 ID:
- *                   type: string
- *                   description: Unique identifier for the machine.
- *                 Plant:
- *                   type: string
- *                   description: The plant location.
- *                 area:
- *                   type: string
- *                   description: The area within the plant.
- *                 machineGroup:
- *                   type: string
- *                   description: The machine group.
- *                 name:
- *                   type: string
- *                   description: The name of the machine.
- *                 description:
- *                   type: string
- *                   description: A description of the machine.
- *                 OEE:
- *                   type: boolean
- *                   description: Whether OEE is enabled for the machine.
+ *               $ref: '#/components/schemas/WorkCenter'
  *       404:
- *         description: Machine not found.
+ *         description: Work center not found.
  */
-router.get('/:id', (req, res) => {
-    const machines = loadMachines();
-    const machine = machines.find((m) => m.ID === req.params.id);
-    if (machine) {
-        res.json(machine);
-    } else {
-        res.status(404).json({ message: `Machine with ID ${req.params.id} not found` });
-    }
+router.get('/:id', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const workCenter = await loadWorkCenterById(id);  // Rufe das Work Center nach ID ab
+    res.json(workCenter);
+  } catch (error) {
+    res.status(404).json({ message: error.message });  // Fehlerbehandlung direkt hier
+  }
 });
 
 /**
  * @swagger
- * /machines:
+ * /workcenters:
  *   post:
- *     summary: Add a new machine
- *     tags: [Machines]
- *     description: Create a new machine with the provided details.
+ *     summary: Add a new work center
+ *     tags: [Work Centers]
+ *     description: Creates a new work center with the provided details.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               Plant:
- *                 type: string
- *                 description: The plant location.
- *               area:
- *                 type: string
- *                 description: The area within the plant.
- *               machineGroup:
- *                 type: string
- *                 description: The machine group.
- *               name:
- *                 type: string
- *                 description: The name of the machine.
- *               description:
- *                 type: string
- *                 description: A description of the machine.
- *               OEE:
- *                 type: boolean
- *                 description: Whether OEE is enabled for the machine.
+ *             $ref: '#/components/schemas/WorkCenterInput'
  *     responses:
  *       201:
- *         description: Machine created successfully.
+ *         description: Work center added successfully.
  *         content:
  *           application/json:
  *             schema:
@@ -153,100 +86,95 @@ router.get('/:id', (req, res) => {
  *               properties:
  *                 message:
  *                   type: string
- *                 machine:
- *                   $ref: '#/components/schemas/Machine'
+ *                 workCenter:
+ *                   $ref: '#/components/schemas/WorkCenter'
+ *       400:
+ *         description: Invalid input data.
  */
-router.post('/', (req, res) => {
-    const machines = loadMachines();
-    const newMachine = { ...req.body, ID: uuidv4() }; // Assign unique ID
-    machines.push(newMachine);
-    saveMachines(machines);
-    res.status(201).json({ message: 'New machine added successfully', machine: newMachine });
+router.post('/', async (req, res) => {
+  try {
+    const newWorkCenter = await createWorkCenter(req.body);  // Work Center erstellen
+    res.status(201).json({ message: 'Work center created successfully', workCenter: newWorkCenter });
+  } catch (error) {
+    res.status(400).json({ message: error.message });  // Fehlerbehandlung direkt hier
+  }
 });
 
 /**
  * @swagger
- * /machines/{id}:
+ * /workcenters/{id}:
  *   put:
- *     summary: Update an existing machine
- *     tags: [Machines]
- *     description: Update the details of an existing machine by its unique ID.
+ *     summary: Update an existing work center
+ *     tags: [Work Centers]
+ *     description: Update an existing work center with the provided data.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The unique ID of the machine.
+ *         description: The unique ID of the work center.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               Plant:
- *                 type: string
- *               area:
- *                 type: string
- *               machineGroup:
- *                 type: string
- *               name:
- *                 type: string
- *               description:
- *                 type: string
- *               OEE:
- *                 type: boolean
+ *             $ref: '#/components/schemas/WorkCenterInput'
  *     responses:
  *       200:
- *         description: Machine updated successfully.
+ *         description: Work center updated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 workCenter:
+ *                   $ref: '#/components/schemas/WorkCenter'
+ *       400:
+ *         description: Invalid input data.
  *       404:
- *         description: Machine not found.
+ *         description: Work center not found.
  */
-router.put('/:id', (req, res) => {
-    const machines = loadMachines();
-    const id = req.params.id;
-    const index = machines.findIndex((m) => m.ID === id);
-
-    if (index !== -1) {
-        machines[index] = { ...machines[index], ...req.body };
-        saveMachines(machines);
-        res.status(200).json({ message: 'Machine updated successfully', machine: machines[index] });
-    } else {
-        res.status(404).json({ message: `Machine with ID ${id} not found` });
-    }
+router.put('/:id', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const updatedWorkCenter = await updateWorkCenter(id, req.body);  // Work Center aktualisieren
+    res.status(200).json({ message: 'Work center updated successfully', workCenter: updatedWorkCenter });
+  } catch (error) {
+    res.status(400).json({ message: error.message });  // Fehlerbehandlung direkt hier
+  }
 });
 
 /**
  * @swagger
- * /machines/{id}:
+ * /workcenters/{id}:
  *   delete:
- *     summary: Delete a machine
- *     tags: [Machines]
- *     description: Remove a machine from the list by its unique ID.
+ *     summary: Delete a work center
+ *     tags: [Work Centers]
+ *     description: Remove a work center from the list based on its unique ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The unique ID of the machine.
+ *         description: The unique ID of the work center.
  *     responses:
- *       200:
- *         description: Machine deleted successfully.
+ *       204:
+ *         description: Work center deleted successfully.
  *       404:
- *         description: Machine not found.
+ *         description: Work center not found.
  */
-router.delete('/:id', (req, res) => {
-    const machines = loadMachines();
-    const filteredMachines = machines.filter((m) => m.ID !== req.params.id);
-
-    if (filteredMachines.length < machines.length) {
-        saveMachines(filteredMachines);
-        res.status(200).json({ message: 'Machine deleted successfully' });
-    } else {
-        res.status(404).json({ message: `Machine with ID ${req.params.id} not found` });
-    }
+router.delete('/:id', async (req, res) => {
+  const id = req.params.id;
+  try {
+    await deleteWorkCenter(id);  // Work Center löschen
+    res.status(204).send();  // Erfolgreich gelöscht
+  } catch (error) {
+    res.status(404).json({ message: error.message });  // Fehlerbehandlung direkt hier
+  }
 });
 
 module.exports = router;
