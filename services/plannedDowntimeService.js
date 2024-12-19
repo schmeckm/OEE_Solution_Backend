@@ -1,148 +1,116 @@
-const { PlannedDowntime } = require('../models'); // Importiere das PlannedDowntime-Modell
+const { PlannedDowntime } = require('../models'); // Import the PlannedDowntime model
 const moment = require("moment-timezone");
-const { dateSettings } = require("../config/config");
+const { dateSettings } = require("../config/config"); // Import timezone and date format from config
 
-// Hilfsfunktion zum Formatieren der Datumsfelder nach dem Laden
+// Helper function to format date fields after loading
 const formatDates = (plannedDowntime) => {
   const { dateFormat, timezone } = dateSettings;
   return {
     ...plannedDowntime,
-    Start: moment(plannedDowntime.Start).tz(timezone).format(dateFormat),
-    End: moment(plannedDowntime.End).tz(timezone).format(dateFormat),
+    Start: moment(plannedDowntime.Start).tz(timezone).format(dateFormat), // Format the start date with timezone
+    End: moment(plannedDowntime.End).tz(timezone).format(dateFormat),     // Format the end date with timezone
   };
 };
 
-// Hilfsfunktion zum Formatieren der Datumsfelder vor dem Speichern
+// Helper function to format date fields before saving to the database
 const formatDatesBeforeSave = (plannedDowntime) => {
   const { timezone } = dateSettings;
   return {
     ...plannedDowntime,
-    Start: moment.tz(plannedDowntime.Start, timezone).utc().toDate(),
-    End: moment.tz(plannedDowntime.End, timezone).utc().toDate(),
+    Start: moment.tz(plannedDowntime.Start, timezone).utc().toDate(), // Convert to UTC before saving
+    End: moment.tz(plannedDowntime.End, timezone).utc().toDate(),     // Convert to UTC before saving
   };
 };
 
+// General error handler
+const handleError = (action, error) => {
+  console.error(`Error ${action}: ${error.message}`);
+  throw new Error(`Failed to ${action} planned downtime: ${error.message}`);
+};
+
 /**
- * Holt alle geplanten Stillstandszeiten.
- * @returns {Promise<Array>} Eine Liste von geplanten Stillstandszeiten.
+ * Fetches all planned downtimes.
+ * @returns {Promise<Array>} A list of planned downtimes.
  */
-// loadPlannedDowntime-Funktion
 const loadPlannedDowntime = async () => {
   try {
-    const data = await PlannedDowntime.findAll();
+    const data = await PlannedDowntime.findAll(); // Fetch all planned downtimes from the DB
     if (!data || data.length === 0) {
-      console.log("Keine geplanten Stillstandszeiten gefunden.");
-      return [];  // Gibt eine leere Liste zurück, falls keine Daten gefunden wurden
+      return [];
     }
-    console.log("Geplante Stillstandszeiten gefunden:", data);
     return data;
   } catch (error) {
-    console.error("Fehler beim Laden der geplanten Stillstandszeiten:", error.message);
-    return [];
+    handleError('load all', error);
   }
 };
 
-
 /**
- * Holt eine geplante Stillstandszeit nach ID.
- * @param {string} id - Die UUID der geplanten Stillstandszeit.
- * @returns {Promise<Object|null>} Die geplante Stillstandszeit oder null, wenn nicht gefunden.
+ * Fetches a planned downtime by ID.
+ * @param {string} id - The UUID of the planned downtime.
+ * @returns {Promise<Object|null>} The planned downtime or null if not found.
  */
 const loadPlannedDowntimeById = async (id) => {
   try {
-    // Suche nach der geplanten Stillstandszeit anhand der ID
-    const plannedDowntime = await PlannedDowntime.findOne({
-      where: {
-        plannedOrder_ID: id,  // Das Feld in der Datenbank (UUID)
-      },
-    });
-
+    const plannedDowntime = await PlannedDowntime.findOne({ where: { plannedOrder_ID: id } });
     if (!plannedDowntime) {
-      console.log(`Keine geplante Stillstandszeit mit ID ${id} gefunden.`);
-      return null;  // Rückgabe von null, wenn keine Daten gefunden wurden
+      console.log(`No planned downtime found with ID ${id}.`);
+      return null;
     }
-
-    // Wenn Daten gefunden wurden, gebe das Ergebnis zurück
     return plannedDowntime;
   } catch (error) {
-    console.error(`Fehler beim Abrufen der Stillstandszeit: ${error.message}`);
-    throw new Error(`Fehler beim Abrufen der Stillstandszeit mit ID ${id}`);
+    handleError(`load by ID ${id}`, error);
   }
 };
 
-
-
 /**
- * Erstellt eine neue geplante Stillstandszeit.
- * @param {Object} data - Die Daten der neuen geplanten Stillstandszeit.
- * @returns {Promise<Object>} Die erstellte geplante Stillstandszeit.
+ * Creates a new planned downtime.
+ * @param {Object} data - The data for the new planned downtime.
+ * @returns {Promise<Object>} The created planned downtime.
  */
 const createPlannedDowntime = async (data) => {
   try {
-    const formattedData = formatDatesBeforeSave(data);
+    const formattedData = formatDatesBeforeSave(data); // Format the dates before saving
     const plannedDowntime = await PlannedDowntime.create(formattedData);
-    return formatDates(plannedDowntime.get());
+    return formatDates(plannedDowntime.get()); // Format the dates after saving and return
   } catch (error) {
-    console.error("Fehler beim Erstellen der geplanten Stillstandszeit:", error.message);
-    throw new Error('Failed to create planned downtime');
+    handleError('create', error);
   }
 };
 
 /**
- * Aktualisiert eine bestehende geplante Stillstandszeit.
- * @param {string} id - Die UUID der zu aktualisierenden geplanten Stillstandszeit.
- * @param {Object} data - Die aktualisierten Daten.
- * @returns {Promise<Object>} Die aktualisierte geplante Stillstandszeit.
+ * Updates an existing planned downtime.
+ * @param {string} id - The UUID of the planned downtime to update.
+ * @param {Object} data - The updated data.
+ * @returns {Promise<Object>} The updated planned downtime.
  */
 const updatePlannedDowntime = async (id, data) => {
   try {
     const plannedDowntime = await PlannedDowntime.findByPk(id);
-    if (!plannedDowntime) {
-      throw new Error('Planned downtime not found');
-    }
+    if (!plannedDowntime) throw new Error('Planned downtime not found');
 
-    const updatedDowntime = await plannedDowntime.update({
-      plannedOrder_ID: data.plannedOrder_ID,
-      Start: data.Start,
-      End: data.End,
-      order_id: data.order_id,
-      workcenter_id: data.workcenter_id,
-      durationInMinutes: data.durationInMinutes,
-    });
-
-    return formatDates(updatedDowntime.get());
+    const updatedDowntime = await plannedDowntime.update(data);
+    return formatDates(updatedDowntime.get()); // Format the dates after updating and return
   } catch (error) {
-    console.error(`Fehler beim Aktualisieren der geplanten Stillstandszeit mit ID ${id}:`, error);
-    throw new Error(`Failed to update planned downtime with ID ${id}: ${error.message}`);
+    handleError(`update with ID ${id}`, error);
   }
 };
 
 /**
- * Löscht eine geplante Stillstandszeit.
- * @param {string} id - Die UUID der zu löschenden geplanten Stillstandszeit.
- * @returns {Promise<boolean>} True, wenn die geplante Stillstandszeit erfolgreich gelöscht wurde.
+ * Deletes a planned downtime.
+ * @param {string} id - The UUID of the planned downtime to delete.
+ * @returns {Promise<boolean>} True if the planned downtime was successfully deleted.
  */
 const deletePlannedDowntime = async (id) => {
   try {
-    // Suche nach geplanten Stillstandszeiten mit der UUID
-    const downtime = await PlannedDowntime.findOne({
-      where: {
-        plannedorder_id: id  // Stellen sicher, dass das richtige Feld verwendet wird
-      }
-    });
+    const downtime = await PlannedDowntime.findOne({ where: { plannedOrder_ID: id } });
+    if (!downtime) throw new Error(`Planned downtime with ID ${id} not found`);
 
-    if (!downtime) {
-      throw new Error(`Geplante Stillstandszeit mit ID ${id} nicht gefunden`);
-    }
-
-    // Lösche die geplante Stillstandszeit
     await downtime.destroy();
-    return true;
+    return true; // Return true if the planned downtime was successfully deleted
   } catch (error) {
-    throw new Error(`Fehler beim Löschen der geplanten Stillstandszeit mit ID ${id}: ${error.message}`);
+    handleError(`delete with ID ${id}`, error);
   }
 };
-
 
 module.exports = {
   loadPlannedDowntime,

@@ -2,13 +2,13 @@ const moment = require("moment-timezone");
 const { dateSettings } = require("../config/config");
 const processOrderRepository = require('../repositories/ProcessOrderRepository');
 
-// Hilfsfunktion zur gemeinsamen Datumsformatierung (vor und nach dem Speichern)
+// Helper function to format date fields (before saving or after loading)
 const formatDate = (date, timezone, isSaving = false) => {
     const momentDate = moment.tz(date, timezone);
     return isSaving ? momentDate.utc().toDate() : momentDate.format(dateSettings.dateFormat);
 };
 
-// Funktion zum Formatieren der Datumsfelder nach dem Laden
+// Function to format date fields after loading from the database
 const formatDates = (processOrder) => {
     const { timezone } = dateSettings;
     return {
@@ -24,7 +24,7 @@ const formatDates = (processOrder) => {
     };
 };
 
-// Funktion zum Formatieren der Datumsfelder vor dem Speichern
+// Function to format date fields before saving to the database
 const formatDatesBeforeSave = (processOrder) => {
     const { timezone } = dateSettings;
     return {
@@ -41,28 +41,29 @@ const formatDatesBeforeSave = (processOrder) => {
 };
 
 /**
- * Lädt alle Prozessaufträge.
- * @returns {Promise<Array>} Eine Liste von formatierten Prozessaufträgen.
+ * Fetches all process orders.
+ * @returns {Promise<Array>} A list of formatted process orders.
  */
 const loadAllProcessOrders = async () => {
     try {
-        // Verwende das Repository, nicht das Modell direkt
+        // Use the repository to fetch data, not the model directly
         const processOrders = await processOrderRepository.getAll();
-        
-        // Extrahiere nur die 'dataValues' und formatiere die Daten
+
+        // Extract only the `dataValues` and format the data
         return processOrders.map((order) => {
-            const data = order.dataValues; // Extrahiere nur die `dataValues`
-            return formatDates(data); // Wende die Formatierung auf die reinen Daten an
+            const data = order.dataValues; // Extract the `dataValues`
+            return formatDates(data); // Apply formatting to the raw data
         });
     } catch (error) {
-        console.error(`Fehler beim Laden aller Prozessaufträge: ${error.message}`);
+        console.error(`Error loading all process orders: ${error.message}`);
         throw error;
     }
 };
+
 /**
- * Lädt einen spezifischen Prozessauftrag nach ID.
- * @param {string} id - Die UUID des Prozessauftrags.
- * @returns {Promise<Object>} Der gefundene und formatierten Prozessauftrag.
+ * Fetches a specific process order by ID.
+ * @param {string} id - The UUID of the process order.
+ * @returns {Promise<Object>} The found and formatted process order.
  */
 const loadProcessOrderById = async (id) => {
     try {
@@ -70,56 +71,56 @@ const loadProcessOrderById = async (id) => {
         if (!processOrder) {
             throw new Error('Process order not found');
         }
-        return formatDates(processOrder);
+        return formatDates(processOrder); // Format the data before returning
     } catch (error) {
-        console.error(`Fehler beim Laden des Prozessauftrags mit ID ${id}: ${error.message}`);
+        console.error(`Error loading process order with ID ${id}: ${error.message}`);
         throw error;
     }
 };
 
 /**
- * Erstellt einen neuen Prozessauftrag.
- * @param {Object} processOrderData - Die Daten des neuen Prozessauftrags.
- * @returns {Promise<Object>} Der erstellte und formatierten Prozessauftrag.
+ * Creates a new process order.
+ * @param {Object} processOrderData - The data for the new process order.
+ * @returns {Promise<Object>} The created and formatted process order.
  */
 const createProcessOrder = async (processOrderData) => {
     try {
-        const formattedData = formatDatesBeforeSave(processOrderData);
+        const formattedData = formatDatesBeforeSave(processOrderData); // Format before saving
         const newOrder = await processOrderRepository.create(formattedData);
-        return formatDates(newOrder);
+        return formatDates(newOrder); // Format the data after saving and return
     } catch (error) {
-        console.error(`Fehler beim Erstellen eines neuen Prozessauftrags: ${error.message}`);
+        console.error(`Error creating a new process order: ${error.message}`);
         throw error;
     }
 };
 
 /**
- * Aktualisiert einen bestehenden Prozessauftrag.
- * @param {string} id - Die UUID des zu aktualisierenden Prozessauftrags.
- * @param {Object} updatedData - Die aktualisierten Daten.
- * @returns {Promise<Object>} Der aktualisierte und formatierten Prozessauftrag.
+ * Updates an existing process order.
+ * @param {string} id - The UUID of the process order to update.
+ * @param {Object} updatedData - The updated data.
+ * @returns {Promise<Object>} The updated and formatted process order.
  */
 const updateProcessOrder = async (id, updatedData) => {
     try {
-        const formattedData = formatDatesBeforeSave(updatedData);
+        const formattedData = formatDatesBeforeSave(updatedData); // Format before updating
         const updatedOrder = await processOrderRepository.update(id, formattedData);
-        return formatDates(updatedOrder);
+        return formatDates(updatedOrder); // Format the data after updating and return
     } catch (error) {
-        console.error(`Fehler beim Aktualisieren des Prozessauftrags mit ID ${id}: ${error.message}`);
+        console.error(`Error updating process order with ID ${id}: ${error.message}`);
         throw error;
     }
 };
 
 /**
- * Löscht einen Prozessauftrag.
- * @param {string} id - Die UUID des zu löschenden Prozessauftrags.
- * @returns {Promise<boolean>} True, wenn der Auftrag erfolgreich gelöscht wurde.
+ * Deletes a process order.
+ * @param {string} id - The UUID of the process order to delete.
+ * @returns {Promise<boolean>} True if the process order was successfully deleted.
  */
 const deleteProcessOrder = async (id) => {
     try {
-        return await processOrderRepository.delete(id);
+        return await processOrderRepository.delete(id); // Use repository to delete
     } catch (error) {
-        console.error(`Fehler beim Löschen des Prozessauftrags mit ID ${id}: ${error.message}`);
+        console.error(`Error deleting process order with ID ${id}: ${error.message}`);
         throw error;
     }
 };

@@ -1,259 +1,185 @@
-const express = require("express");
-const { v4: uuidv4 } = require("uuid");
-const moment = require("moment-timezone");
-const Joi = require("joi");
-const sanitizeHtml = require("sanitize-html");
-
-const {
-  loadMicroStops,
-  saveMicroStops,
-} = require("../services/microstopService");
-
-const router = express.Router();
-
-// Centralized error handling middleware
-const asyncHandler = (fn) => (req, res, next) =>
-  Promise.resolve(fn(req, res, next)).catch(next);
-
-// Input validation and sanitization function
-const validateAndSanitizeMicroStop = (data) => {
-  // Joi schema for microstops
-  const schema = Joi.object({
-    description: Joi.string().required(),
-    Start: Joi.date().required(),
-    End: Joi.date().required(),
-    machine_id: Joi.string().required(),
-    // Add any other required fields here
-  });
-
-  // Validate input data
-  const { error, value } = schema.validate(data);
-
-  if (error) {
-    throw new Error(error.details[0].message);
-  }
-
-  // Sanitize string inputs
-  value.description = sanitizeHtml(value.description);
-  value.machine_id = sanitizeHtml(value.machine_id);
-
-  return value;
-};
-
-// Utility function for consistent date formatting
-const formatDate = (date) =>
-  date ? moment(date).format("YYYY-MM-DDTHH:mm:ss") : null;
+const express = require('express');
+const router = express.Router(); // Initialisiere den Router
+const { 
+  loadMicrostops, 
+  loadMicrostopById, 
+  createMicrostop, 
+  updateMicrostop, 
+  deleteMicrostop 
+} = require('../services/microstopService'); // Importiere die Microstop-Services
 
 /**
  * @swagger
  * tags:
  *   name: Microstops
- *   description: API for managing microstops
+ *   description: API zur Verwaltung der Microstop-Daten
  */
 
 /**
  * @swagger
  * /microstops:
  *   get:
- *     summary: Get all microstops
+ *     summary: Alle Microstop-Daten abrufen
  *     tags: [Microstops]
- *     description: Retrieve a list of all microstops.
  *     responses:
  *       200:
- *         description: A list of microstops.
+ *         description: Eine Liste von Microstop-Daten
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 $ref: '#/components/schemas/MicroStop'
+ *                 $ref: '#/components/schemas/Microstop'
  */
-router.get(
-  "/",
-  asyncHandler(async (req, res) => {
-    const data = await loadMicroStops();
-    res.json(data);
-  })
-);
+router.get("/", async (req, res) => {
+  try {
+    const microstops = await loadMicrostops(); // Abrufen der Microstop-Daten
+    res.status(200).json(microstops); // Rückgabe der Microstop-Daten
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Microstop-Daten:", error);
+    res.status(500).json({ message: "Fehler beim Abrufen der Microstop-Daten" });
+  }
+});
 
 /**
  * @swagger
  * /microstops/{id}:
  *   get:
- *     summary: Get a specific microstop
+ *     summary: Ein Microstop nach ID abrufen
  *     tags: [Microstops]
- *     description: Retrieve a single microstop by ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The microstop ID.
+ *         description: Die ID des Microstops
  *     responses:
  *       200:
- *         description: A microstop object.
+ *         description: Der Microstop mit der angegebenen ID
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/MicroStop'
+ *               $ref: '#/components/schemas/Microstop'
  *       404:
- *         description: Microstop not found.
+ *         description: Microstop nicht gefunden
  */
-router.get(
-  "/:id",
-  asyncHandler(async (req, res) => {
-    const data = await loadMicroStops();
-    const microStop = data.find((d) => d.ID === req.params.id);
-    if (microStop) {
-      res.json(microStop);
-    } else {
-      res.status(404).json({ message: "Microstop not found" });
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const microstop = await loadMicrostopById(id); // Abrufen des Microstop anhand der ID
+    if (!microstop) {
+      return res.status(404).json({ message: "Microstop nicht gefunden" });
     }
-  })
-);
+    res.status(200).json(microstop); // Rückgabe des gefundenen Microstops
+  } catch (error) {
+    res.status(500).json({ message: "Fehler beim Abrufen des Microstops" });
+  }
+});
 
 /**
  * @swagger
  * /microstops:
  *   post:
- *     summary: Add a new microstop
+ *     summary: Einen neuen Microstop hinzufügen
  *     tags: [Microstops]
- *     description: Create a new microstop.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/MicroStopInput'
+ *             $ref: '#/components/schemas/MicrostopInput'
  *     responses:
  *       201:
- *         description: Microstop added successfully.
+ *         description: Microstop erfolgreich hinzugefügt
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/MicroStop'
+ *               $ref: '#/components/schemas/Microstop'
  *       400:
- *         description: Invalid input data.
+ *         description: Ungültige Eingabedaten
  */
-router.post(
-  "/",
-  asyncHandler(async (req, res) => {
-    try {
-      const data = await loadMicroStops();
-      const sanitizedData = validateAndSanitizeMicroStop(req.body);
-
-      // Generate a new unique ID
-      sanitizedData.ID = uuidv4();
-
-      // Format date fields
-      sanitizedData.Start = formatDate(sanitizedData.Start);
-      sanitizedData.End = formatDate(sanitizedData.End);
-
-      data.push(sanitizedData);
-      await saveMicroStops(data);
-      res.status(201).json(sanitizedData);
-    } catch (error) {
-      res.status(400).json({ message: error.message });
-    }
-  })
-);
+router.post("/", async (req, res) => {
+  try {
+    const microstopData = req.body; // Daten aus dem Request-Body
+    const newMicrostop = await createMicrostop(microstopData); // Erstellen eines neuen Microstops
+    res.status(201).json(newMicrostop); // Rückgabe des erstellten Microstops
+  } catch (error) {
+    res.status(400).json({ message: "Fehler beim Erstellen des Microstops" });
+  }
+});
 
 /**
  * @swagger
  * /microstops/{id}:
  *   put:
- *     summary: Update an existing microstop
+ *     summary: Einen bestehenden Microstop aktualisieren
  *     tags: [Microstops]
- *     description: Update the details of an existing microstop.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The microstop ID.
+ *         description: Die ID des zu aktualisierenden Microstops
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/MicroStopInput'
+ *             $ref: '#/components/schemas/MicrostopInput'
  *     responses:
  *       200:
- *         description: Microstop updated successfully.
+ *         description: Microstop erfolgreich aktualisiert
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/MicroStop'
- *       400:
- *         description: Invalid input data.
+ *               $ref: '#/components/schemas/Microstop'
  *       404:
- *         description: Microstop not found.
+ *         description: Microstop nicht gefunden
  */
-router.put(
-  "/:id",
-  asyncHandler(async (req, res) => {
-    try {
-      const data = await loadMicroStops();
-      const index = data.findIndex((item) => item.ID === req.params.id);
-
-      if (index !== -1) {
-        const sanitizedData = validateAndSanitizeMicroStop(req.body);
-
-        // Preserve the original ID
-        sanitizedData.ID = req.params.id;
-
-        // Format date fields
-        sanitizedData.Start = formatDate(sanitizedData.Start);
-        sanitizedData.End = formatDate(sanitizedData.End);
-
-        data[index] = { ...data[index], ...sanitizedData };
-        await saveMicroStops(data);
-        res.status(200).json(data[index]);
-      } else {
-        res.status(404).json({ message: "Microstop not found" });
-      }
-    } catch (error) {
-      res.status(400).json({ message: error.message });
-    }
-  })
-);
+router.put("/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedData = req.body; // Die aktualisierten Daten
+  try {
+    const updatedMicrostop = await updateMicrostop(id, updatedData); // Aktualisieren des Microstops
+    res.status(200).json(updatedMicrostop); // Rückgabe des aktualisierten Microstops
+  } catch (error) {
+    res.status(400).json({ message: "Fehler beim Aktualisieren des Microstops" });
+  }
+});
 
 /**
  * @swagger
  * /microstops/{id}:
  *   delete:
- *     summary: Delete a microstop
+ *     summary: Einen Microstop löschen
  *     tags: [Microstops]
- *     description: Remove a microstop from the list.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The microstop ID.
+ *         description: Die ID des zu löschenden Microstops
  *     responses:
  *       204:
- *         description: Microstop deleted successfully.
+ *         description: Microstop erfolgreich gelöscht
  *       404:
- *         description: Microstop not found.
+ *         description: Microstop nicht gefunden
  */
-router.delete(
-  "/:id",
-  asyncHandler(async (req, res) => {
-    const data = await loadMicroStops();
-    const initialLength = data.length;
-    const newData = data.filter((item) => item.ID !== req.params.id);
-
-    if (newData.length !== initialLength) {
-      await saveMicroStops(newData);
-      res.status(204).send();
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await deleteMicrostop(id); // Löschen des Microstops
+    if (result) {
+      res.status(204).send(); // Erfolgreiches Löschen
     } else {
-      res.status(404).json({ message: "Microstop not found" });
+      res.status(404).json({ message: "Microstop nicht gefunden" });
     }
-  })
-);
+  } catch (error) {
+    res.status(500).json({ message: "Fehler beim Löschen des Microstops" });
+  }
+});
 
 module.exports = router;

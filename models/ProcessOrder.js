@@ -88,11 +88,6 @@ module.exports = (sequelize) => {
             type: DataTypes.DATE,
             allowNull: true,
             field: 'actual_processorder_end'  // Der tatsächliche Name der Spalte in der Datenbank
-        },
-        machinename: {
-            type: DataTypes.STRING,
-            allowNull: false,
-            field: 'machine_name'  // Der tatsächliche Name der Spalte in der Datenbank
         }
     }, {
         tableName: 'process_orders',  // Der Name der Tabelle in der Datenbank

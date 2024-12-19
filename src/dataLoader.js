@@ -1,292 +1,365 @@
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
 const moment = require("moment-timezone");
 const dotenv = require("dotenv");
-const { oeeLogger, errorLogger } = require("../utils/logger");
+const { oeeLogger, errorLogger, defaultLogger } = require("../utils/logger");
 
 dotenv.config();
 
-const OEE_API_URL = process.env.OEE_API_URL;
+// Zugriff auf die Umgebungsvariablen
+const dateFormat = process.env.DATE_FORMAT;
+const timezone = process.env.TIMEZONE;
+
+console.log(`TIMEZONE: ${process.env.TIMEZONE}`);
+console.log(`DATE_FORMAT: ${process.env.DATE_FORMAT}`);
 
 // Erstellen der benutzerdefinierten axios-Instanz mit API-Key
+const OEE_API_URL = process.env.OEE_API_URL;
+const API_KEY = process.env.API_KEY;
+
 const apiClient = axios.create({
     baseURL: OEE_API_URL,
     headers: {
-        'x-api-key': process.env.API_KEY
+        'x-api-key': API_KEY
     }
 });
 
 // Caches for various data
-let unplannedDowntimeCache = null;
-let plannedDowntimeCache = null;
-let processOrderDataCache = null;
-let shiftModelDataCache = null;
-let machineDataCache = null;
-let runningOrderCache = {};
-let processOrderByMachineCache = {};
-let microstopsCache = null;
-let OEEDataCache = {};
-const shiftModelCache = {};
+const cache = {
+    machineData: { data: null, lastFetchTime: null },
+    unplannedDowntime: null,
+    plannedDowntime: null,
+    processOrderData: { data: null, lastFetchTime: null },
+    shiftModelData: null,
+    runningOrder: {},
+    processOrderByMachine: {},
+    microstops: null,
+    OEEData: {},
+    shiftModel: {}
+};
 
-// Load machine data from the API, caching the result
-async function loadMachineData() {
-    if (!machineDataCache) {
-        try {
-            const response = await apiClient.get(`/machines`);
-            machineDataCache = response.data;
-        } catch (error) {
-            errorLogger.error(`Failed to load machine data: ${error.message}`);
-            throw error;
-        }
-    }
-    return machineDataCache;
-}
+// Helper function to check cache validity
+const isCacheValid = (lastFetchTime) => lastFetchTime && (Date.now() - lastFetchTime < CACHE_DURATION);
 
-// Load unplanned downtime data from the API, caching the result
-async function loadUnplannedDowntimeData() {
-    if (!unplannedDowntimeCache) {
-        try {
-            const response = await apiClient.get(`/unplanneddowntime`);
-            const data = response.data;
-            unplannedDowntimeCache = data.map((downtime) => ({
-                ...downtime,
-                Start: moment(downtime.Start).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
-                End: moment(downtime.End).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
-            }));
-            oeeLogger.debug(`Unplanned downtime data loaded successfully.`);
-        } catch (error) {
-            errorLogger.error(`Failed to load unplanned downtime data: ${error.message}`);
-            throw new Error("Could not load unplanned downtime data");
-        }
-    }
-    return unplannedDowntimeCache;
-}
-
-// Load planned downtime data from the API, caching the result
-async function loadPlannedDowntimeData() {
-    if (!plannedDowntimeCache) {
-        try {
-            const response = await apiClient.get(`/planneddowntime`);
-            const data = response.data;
-            plannedDowntimeCache = data.map((downtime) => ({
-                ...downtime,
-                Start: moment(downtime.Start).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
-                End: moment(downtime.End).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
-            }));
-            oeeLogger.info(`Planned downtime data loaded successfully.`);
-        } catch (error) {
-            errorLogger.error(`Failed to load planned downtime data: ${error.message}`);
-            throw new Error("Could not load planned downtime data");
-        }
-    }
-    return plannedDowntimeCache;
-}
-
-// Load process order data from the API, caching the result
-async function loadProcessOrderData() {
-    if (!processOrderDataCache) {
-        try {
-            const response = await apiClient.get(`/processorders`);
-            if (!Array.isArray(response.data)) {
-                throw new Error("Process order data is not an array");
-            }
-            let processOrderData = response.data.map((order) => ({
-                ...order,
-                Start: moment(order.Start).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
-                End: moment(order.End).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
-            }));
-            processOrderDataCache = processOrderData;
-            oeeLogger.debug(`Process order data loaded successfully.`);
-        } catch (error) {
-            errorLogger.error(`Failed to load process order data: ${error.message}`);
-            throw new Error("Could not load process order data");
-        }
-    }
-    return processOrderDataCache;
-}
-
-// Load process orders for a specific machine, caching the result
-async function loadProcessOrderDataByMachine(machineId) {
-    if (processOrderByMachineCache[machineId]) {
-        oeeLogger.debug(`Returning cached process orders for machine ID: ${machineId}`);
-        return processOrderByMachineCache[machineId];
+// Helper function to fetch data from API with caching
+const fetchDataWithCache = async (cacheKey, endpoint, transformFn = (data) => data, options = {}) => {
+    if (cache[cacheKey] && isCacheValid(cache[cacheKey].lastFetchTime)) {
+        return cache[cacheKey].data;
     }
     try {
-        const response = await apiClient.get(`/processorders/rel`, {
-            params: { machineId, mark: true },
-        });
-        let processOrderData = response.data.map((order) => ({
-            ...order,
-            Start: moment(order.Start).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
-            End: moment(order.End).format("YYYY-MM-DDTHH:mm:ss.SSSZ"),
-        }));
-        processOrderByMachineCache[machineId] = processOrderData;
-        oeeLogger.info(`Process order data loaded successfully for machine ID: ${machineId}`);
-        return processOrderData;
+        const response = await apiClient.get(endpoint, options);
+        if (!response || !response.data) {
+            throw new Error(`No data received from API for endpoint: ${endpoint}`);
+        }
+        const data = transformFn(response.data);
+        cache[cacheKey] = { data, lastFetchTime: Date.now() };
+        return data;
     } catch (error) {
-        errorLogger.error(`Failed to load process order data for machine ID ${machineId}: ${error.message}`);
-        throw new Error("Could not load process order data by machine");
+        errorLogger.error(`Failed to fetch ${cacheKey} data: ${error.message}`);
+        throw new Error(`Could not load ${cacheKey} data`);
+    }
+};
+
+// Load unplanned downtime data from the API, caching the result
+const loadUnplannedDowntimeData = () => fetchDataWithCache('unplannedDowntime', '/unplanneddowntime', (data) => {
+    oeeLogger.debug(`Fetched unplanned downtime data: ${JSON.stringify(data)}`);
+    
+    return data.map((downtime) => ({
+        ...downtime,
+        start_date: moment.utc(downtime.start_date).format(dateFormat), 
+        end_date: moment.utc(downtime.end_date).format(dateFormat), 
+    }));
+});
+
+// Load planned downtime data from the API, caching the result
+const loadPlannedDowntimeData = () => fetchDataWithCache('plannedDowntime', '/planneddowntime', (data) => {
+    oeeLogger.debug(`Fetched planned downtime data: ${JSON.stringify(data)}`);
+
+    return data.map((downtime) => ({
+        ...downtime,
+        start_date: moment.utc(downtime.start_date).format(dateFormat), 
+        end_date: moment.utc(downtime.end_date).format(dateFormat), 
+    }));
+});
+
+// Load process order data from the API, caching the result
+const loadProcessOrderData = () => fetchDataWithCache('processOrderData', '/processorders', (data) => {
+    if (!Array.isArray(data)) {
+        throw new Error("Process order data is not an array");
+    }
+    oeeLogger.debug(`Loaded ${data.length} process orders`);
+    return data.map((order) => ({
+        ...order,
+        Start: moment.utc(order.start_date).format(dateFormat),
+        End: moment.utc(order.end_date).format(dateFormat),
+    }));
+});
+
+// Load process orders for a specific machine, caching the result
+const loadProcessOrderDataByMachine = async (machineId) => {
+    try {
+        return await fetchDataWithCache(`processOrderByMachine.${machineId}`, `/processorders/rel`, (data) =>
+            data.map((order) => ({
+                ...order,
+                Start: moment.utc(order.Start).format(dateFormat),
+                End: moment.utc(order.End).format(dateFormat),
+            })), { params: { machineId, mark: true } });
+    } catch (error) {
+        errorLogger.error(`Failed to load process orders for machine ID ${machineId}: ${error.message}`);
+        throw new Error(`Could not load process orders for machine ID ${machineId}`);
+    }
+};
+
+let cachedMachineData = null;
+let lastFetchTime = null;
+const CACHE_DURATION = 5 * 60 * 1000; // Cache duration in milliseconds (e.g., 5 minutes)
+
+async function loadMachineData() {
+    const now = Date.now();
+
+    // Check if cached data is available and not expired
+    if (cachedMachineData && lastFetchTime && (now - lastFetchTime < CACHE_DURATION)) {
+        return cachedMachineData;
+    }
+
+    try {
+        const response = await apiClient.get('/workcenters');
+        cachedMachineData = response.data;
+        lastFetchTime = now;
+        return cachedMachineData;
+    } catch (error) {
+        errorLogger.error(`Error fetching machine data: ${error.message}`, {
+            stack: error.stack,
+            config: error.config,
+            response: error.response ? {
+                status: error.response.status,
+                data: error.response.data
+            } : null
+        });
+        throw new Error(`Error fetching machine data: ${error.message}`);
     }
 }
 
 // Retrieve the machine ID using a line code, using cached data if available
-async function getMachineIdFromLineCode(lineCode) {
+const getMachineIdFromLineCode = async (machineName) => {
     try {
         const machines = await loadMachineData();
-        const machine = machines.find((m) => m.name === lineCode);
+
+        oeeLogger.debug(`Loaded machines: ${JSON.stringify(machines)}`);
+        const machine = machines.find((m) => {
+            return m.name.toLowerCase() === machineName.toLowerCase();
+        });
+
         if (machine) {
-            oeeLogger.info(`Machine ID ${machine.machine_id} found for line code: ${lineCode}`);
-            return machine.machine_id;
+            oeeLogger.info(`Machine ID ${machine.workcenter_id} found for line code: ${machineName}`);
+            oeeLogger.debug(`Returning machine ID: ${machine.workcenter_id}`);
+            return machine.workcenter_id;
         } else {
-            oeeLogger.warn(`No machine ID found for line code: ${lineCode}`);
+            oeeLogger.warn(`No machine ID found for line code: ${machineName}`);
             return null;
         }
     } catch (error) {
-        errorLogger.error(`Failed to retrieve machine ID: ${error.message}`);
-        throw new Error("Could not retrieve machine data");
+        errorLogger.error(`Failed to retrieve machine ID for line code ${machineName}: ${error.message}`);
+        throw new Error(`Could not retrieve machine data for line code ${machineName}`);
     }
-}
+};
 
 // Check for a running order for a specific machine, caching the result
-async function checkForRunningOrder(machineId) {
-    if (runningOrderCache[machineId]) {
-        oeeLogger.debug(`Returning cached running order for machine ID: ${machineId}`);
-        return runningOrderCache[machineId];
-    }
-    try {
-        const response = await apiClient.get(`/processorders/rel`, {
-            params: { machineId, mark: true },
-        });
-        const runningOrder = response.data;
-        if (runningOrder && runningOrder.length > 0) {
-            oeeLogger.info(`Running order found for machine ID: ${machineId}`);
-            runningOrderCache[machineId] = runningOrder[0];
-            return runningOrder[0];
+const checkForRunningOrder = (machineId) => {
+    oeeLogger.debug(`checkForRunningOrder called with machineId: ${machineId}`);
+
+    return fetchDataWithCache(`runningOrder.${machineId}`, `/processorders/rel`, (data) => {
+        oeeLogger.debug(`Data received for machine ID: ${machineId}`, data);
+
+        if (data && data.length > 0) {
+            oeeLogger.debug(`Running order found for machine ID: ${machineId}`, data[0]);
+            return data[0];
         } else {
             oeeLogger.warn(`No running order found for machine ID: ${machineId}`);
-            runningOrderCache[machineId] = null;
             return null;
         }
-    } catch (error) {
-        errorLogger.error(`Failed to check for running order: ${error.message}`);
-        throw new Error("Could not retrieve process order data");
-    }
-}
-
-// Load microstops data from the API, caching the result
-async function loadMicrostops() {
-    if (microstopsCache) {
-        oeeLogger.debug("Returning cached microstops data");
-        return microstopsCache;
-    }
-    try {
-        const response = await apiClient.get(`/microstops`);
-        if (Array.isArray(response.data)) {
-            microstopsCache = response.data;
-            oeeLogger.info("Microstops data loaded successfully.");
-            return microstopsCache;
-        } else {
-            oeeLogger.warn("Unexpected format of microstops data");
-            throw new Error("Invalid microstops data format");
-        }
-    } catch (error) {
-        errorLogger.error(`Failed to load microstops data: ${error.message}`);
-        throw new Error("Could not load microstops data");
-    }
-}
+    }, { params: { machineId, mark: true } })
+    .catch(error => {
+        oeeLogger.error(`Error fetching running order for machine ID: ${machineId}`, error);
+        throw error;
+    });
+};
 
 // Load and prepare OEE data
-async function loadDataAndPrepareOEE(machineId) {
-    if (OEEDataCache[machineId]) {
-        oeeLogger.debug(`Returning cached OEE data for machine ID: ${machineId}`);
-        return OEEDataCache[machineId];
-    }
+const loadDataAndPrepareOEE = async (machineId) => {
     try {
-        const response = await apiClient.get(`/prepareOEE/oee/${machineId}`);
-        const OEEData = response.data;
-        oeeLogger.info(`OEE data loaded successfully for machine ID: ${machineId}`);
-        oeeLogger.debug(`OEE data: ${JSON.stringify(OEEData, null, 2)}`);
-        OEEDataCache[machineId] = OEEData;
-        return OEEData;
+        const data = await fetchDataWithCache(`OEEData.${machineId}`, `/prepareOEE/oee/${machineId}`);
+        oeeLogger.debug(`Successfully loaded and prepared OEE data for machineId ${machineId}: ${JSON.stringify(data)}`);
+        return data;
     } catch (error) {
-        errorLogger.error(`Failed to load OEE data for machine ID ${machineId}: ${error.message}`);
-        throw new Error("Could not load OEE data from API");
+        errorLogger.error(`Failed to load and prepare OEE data for machineId ${machineId}: ${error.message}`);
+        throw new Error(`Could not load and prepare OEE data for machineId ${machineId}`);
     }
-}
+};
+
+// Fetch OEE Data from API with caching
+const fetchOEEDataFromAPI = (machineId) => fetchDataWithCache(`OEEData.${machineId}`, `/prepareOEE/oee/${machineId}`, (data) => {
+    oeeLogger.debug(`Fetched OEE data for machineId ${machineId}: ${JSON.stringify(data)}`);
+    return data;
+});
+
+// Load microstop data from the API, caching the result
+const loadMicrostops = () => fetchDataWithCache('microstops', '/microstops', (data) => {
+    oeeLogger.debug(`Fetched microstops data: ${JSON.stringify(data)}`);
+
+    // Flache Struktur der Microstops-Daten erstellen
+    const flattenedMicrostops = data.map((microstop) => ({
+        Microstop_ID: microstop.dataValues.Microstop_ID,
+        Order_ID: microstop.dataValues.Order_ID,
+        start_date: moment.utc(microstop.dataValues.start_date).format(dateFormat),
+        end_date: moment.utc(microstop.dataValues.end_date).format(dateFormat),
+        Reason: microstop.dataValues.Reason,
+        Differenz: microstop.dataValues.Differenz,
+        workcenter_id: microstop.dataValues.workcenter_id
+    }));
+
+    oeeLogger.debug(`Flattened Microstops Data: ${JSON.stringify(flattenedMicrostops)}`);
+    return flattenedMicrostops;
+});
 
 // Load shift model data for a specific machine from the API, caching the result
-async function loadShiftModelData(machineId) {
-    if (shiftModelCache[machineId]) {
-        oeeLogger.debug(`Returning cached shift model data for machine ID: ${machineId}`);
-        return shiftModelCache[machineId];
-    }
-    try {
-        const response = await apiClient.get(`/shiftmodels/machine/${machineId}`);
-        if (Array.isArray(response.data)) {
-            shiftModelCache[machineId] = response.data;
-            oeeLogger.debug(`Shift model data loaded successfully for machine ID: ${machineId}`);
-            return shiftModelCache[machineId];
-        } else {
-            oeeLogger.warn(`Unexpected format of shift model data for machine ID: ${machineId}`);
-            throw new Error("Invalid shift model data format");
-        }
-    } catch (error) {
-        errorLogger.error(`Failed to load shift model data for machine ID: ${machineId}: ${error.message}`);
-        throw new Error("Could not load shift model data");
-    }
-}
+const loadShiftModelData = (machineId) => fetchDataWithCache(`shiftModel.${machineId}`, `/shiftmodels/workcenter/${machineId}`, (data) => {
+    oeeLogger.debug(`Fetched shift model data for machineId ${machineId}: ${JSON.stringify(data)}`);
+    return data;
+});
 
 // Filters and calculates durations for OEE calculation
+// Funktion zum Filtern und Berechnen der Dauern für die OEE-Berechnung
 function filterAndCalculateDurations(processOrder, plannedDowntime, unplannedDowntime, microstops, shifts) {
-    const orderStart = parseDate(processOrder.Start).startOf("hour");
-    const orderEnd = parseDate(processOrder.End).endOf("hour");
+    // Konvertiere start_date und end_date in Moment-Objekte und runde auf die nächste volle Stunde
+    const orderStart = moment.utc(processOrder.start_date).startOf("hour");
+    const orderEnd = moment.utc(processOrder.end_date).add(1, 'hour').startOf("hour");
 
     oeeLogger.debug(`Processing order from ${orderStart.format()} to ${orderEnd.format()}`);
 
-    // Filter planned downtime entries
-    const filteredPlannedDowntime = plannedDowntime.filter((downtime) => {
-        const start = parseDate(downtime.Start);
-        const end = parseDate(downtime.End);
+    const filterEntries = (entries) => entries.filter(({ start_date, end_date }) => {
+        const start = parseDate(start_date);
+        const end = parseDate(end_date);
         return start.isBetween(orderStart, orderEnd, null, "[]") || end.isBetween(orderStart, orderEnd, null, "[]");
     });
 
-    // Filter unplanned downtime entries
-    const filteredUnplannedDowntime = unplannedDowntime.filter((downtime) => {
-        const start = parseDate(downtime.Start);
-        const end = parseDate(downtime.End);
-        return start.isBetween(orderStart, orderEnd, null, "[]") || end.isBetween(orderStart, orderEnd, null, "[]");
-    });
+    const filteredPlannedDowntime = filterEntries(plannedDowntime);
+    oeeLogger.debug(`Filtered Planned Downtime: ${JSON.stringify(filteredPlannedDowntime)}`);
 
-    // Filter microstops
-    const filteredMicrostops = microstops.filter((microstop) => {
-        const start = parseDate(microstop.Start);
-        const end = parseDate(microstop.End);
-        return start.isBetween(orderStart, orderEnd, null, "[]") || end.isBetween(orderStart, orderEnd, null, "[]");
-    });
+    const filteredUnplannedDowntime = filterEntries(unplannedDowntime);
+    oeeLogger.debug(`Filtered Unplanned Downtime: ${JSON.stringify(filteredUnplannedDowntime)}`);
 
-    // Filter breaks based on shifts
+    const filteredMicrostops = filterEntries(microstops);
+    oeeLogger.debug(`Filtered Microstops: ${JSON.stringify(filteredMicrostops)}`);
+
+    // Gefilterte Pausen
     const filteredBreaks = shifts.flatMap((shift) => {
-        const shiftStart = moment.utc(`${moment(orderStart).format("YYYY-MM-DD")} ${shift.shift_start_time}`, "YYYY-MM-DD HH:mm");
-        const shiftEnd = moment.utc(`${moment(orderStart).format("YYYY-MM-DD")} ${shift.shift_end_time}`, "YYYY-MM-DD HH:mm");
-        const breakStart = moment.utc(`${moment(orderStart).format("YYYY-MM-DD")} ${shift.break_start}`, "YYYY-MM-DD HH:mm");
-        const breakEnd = moment.utc(`${moment(orderStart).format("YYYY-MM-DD")} ${shift.break_end}`, "YYYY-MM-DD HH:mm");
+        const shiftStart = moment.utc(
+            `${moment(orderStart).format("YYYY-MM-DD")} ${shift.shift_start_time}`,
+            "YYYY-MM-DD HH:mm"
+        );
+        const shiftEnd = moment.utc(
+            `${moment(orderStart).format("YYYY-MM-DD")} ${shift.shift_end_time}`,
+            "YYYY-MM-DD HH:mm"
+        );
+        const breakStart = moment.utc(
+            `${moment(orderStart).format("YYYY-MM-DD")} ${shift.break_start}`,
+            "YYYY-MM-DD HH:mm"
+        );
+        const breakEnd = moment.utc(
+            `${moment(orderStart).format("YYYY-MM-DD")} ${shift.break_end}`,
+            "YYYY-MM-DD HH:mm"
+        );
 
-        if (breakEnd.isBefore(breakStart)) breakEnd.add(1, "day");
-        if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, "day");
+        if (breakEnd.isBefore(breakStart)) {
+            breakEnd.add(1, "day");
+        }
+        if (shiftEnd.isBefore(shiftStart)) {
+            shiftEnd.add(1, "day");
+        }
 
-        return shift.machine_id === processOrder.machine_id ? [{
-            breakDuration: calculateBreakDuration(shift.break_start, shift.break_end),
-            breakStart: breakStart.format(),
-            breakEnd: breakEnd.format(),
+        // Überprüfen, ob die Schicht innerhalb des Bestellzeitraums liegt
+        if (shiftEnd.isBefore(orderStart) || shiftStart.isAfter(orderEnd)) {
+            oeeLogger.debug(
+                `Shift outside of order range: ${shift.shift_start_time} - ${shift.shift_end_time}`
+            );
+            return [];
+        }
+
+        // Berechnung der tatsächlichen Schichtzeiten innerhalb des Bestellzeitraums
+        const actualShiftStart = moment.max(shiftStart, orderStart);
+        const actualShiftEnd = moment.min(shiftEnd, orderEnd);
+
+        const breakDuration = calculateBreakDuration(
+            shift.break_start,
+            shift.break_end
+        );
+        oeeLogger.debug(`Break Start: ${shift.break_start}, Break End: ${shift.break_end}`);
+        oeeLogger.debug(`Calculated break duration: ${breakDuration} minutes`);
+
+        const isMachineMatch = shift.workcenter_id === processOrder.workcenter_id;
+        oeeLogger.debug(`Machine ID Match: ${isMachineMatch}`);
+
+        return isMachineMatch ? [{
+            breakDuration: breakDuration || 0, 
+            breakStart: actualShiftStart.format(),
+            breakEnd: actualShiftEnd.format(),
         }] : [];
     });
 
+    oeeLogger.debug(`Filtered Breaks: ${JSON.stringify(filteredBreaks)}`);
+
+    // Gesamt geplante Ausfallzeit berechnen
+    const totalPlannedDowntime = filteredPlannedDowntime.reduce(
+        (acc, downtime) => {
+            const start = parseDate(downtime.start_date);
+            const end = parseDate(downtime.end_date);
+            acc += calculateOverlap(start, end, orderStart, orderEnd);
+            return acc;
+        },
+        0
+    );
+
+    // Gesamt ungeplante Ausfallzeit berechnen
+    const totalUnplannedDowntime = filteredUnplannedDowntime.reduce(
+        (acc, downtime) => {
+            const start = parseDate(downtime.start_date);
+            const end = parseDate(downtime.end_date);
+            acc += calculateOverlap(start, end, orderStart, orderEnd);
+            return acc;
+        },
+        0
+    );
+
+    // Gesamt Mikrostopps berechnen
+    const totalMicrostops = filteredMicrostops.length;
+    const totalMicrostopDuration = filteredMicrostops.reduce((acc, microstop) => {
+        const start = parseDate(microstop.start_date);
+        const end = parseDate(microstop.end_date);
+        acc += calculateOverlap(start, end, orderStart, orderEnd);
+        return acc;
+    }, 0);
+
+    // Gesamt Pausen berechnen
+    const totalBreakDuration = filteredBreaks.reduce(
+        (acc, brk) => acc + (brk.breakDuration || 0),
+        0
+    );
+
+    oeeLogger.debug(`Total Planned Downtime: ${totalPlannedDowntime} minutes`);
+    oeeLogger.debug(
+        `Total Unplanned Downtime: ${totalUnplannedDowntime} minutes`
+    );
+    oeeLogger.debug(
+        `Total Microstops: ${totalMicrostops}, Duration: ${totalMicrostopDuration} minutes`
+    );
+    oeeLogger.debug(`Total Break Duration: ${totalBreakDuration} minutes`);
+
     return {
-        plannedDowntime: filteredPlannedDowntime,
-        unplannedDowntime: filteredUnplannedDowntime,
-        microstops: filteredMicrostops,
-        breaks: filteredBreaks,
+        plannedDowntime: totalPlannedDowntime,
+        unplannedDowntime: totalUnplannedDowntime,
+        microstops: totalMicrostops,
+        microstopDuration: totalMicrostopDuration,
+        breaks: totalBreakDuration, // Rückgabe der gesamten Pausendauer
     };
 }
 
@@ -295,11 +368,28 @@ function parseDate(dateStr) {
     return moment.utc(dateStr);
 }
 
+// Helper function to calculate the overlap duration between two time intervals
+function calculateOverlap(start1, end1, start2, end2) {
+    const overlapStart = moment.max(start1, start2);
+    const overlapEnd = moment.min(end1, end2);
+    return Math.max(0, overlapEnd.diff(overlapStart, "minutes"));
+}
+
 // Helper function to calculate the duration of a break
 function calculateBreakDuration(breakStart, breakEnd) {
-    const breakStartTime = moment(breakStart, "HH:mm");
-    const breakEndTime = moment(breakEnd, "HH:mm");
-    return breakEndTime.diff(breakStartTime, "minutes");
+    // Konvertieren der Zeiten zu Moment-Objekten in UTC
+    const format = "YYYY-MM-DDTHH:mm:ssZ"; // Angenommen, Ihre Zeiten sind in diesem Format
+    const breakStartTime = moment.utc(breakStart, format);
+    const breakEndTime = moment.utc(breakEnd, format);
+
+    // Überprüfung, ob die Endzeit vor der Startzeit liegt (Über Nacht)
+    if (breakEndTime.isBefore(breakStartTime)) {
+        breakEndTime.add(1, 'day');
+    }
+
+    // Berechnen der Dauer in Minuten
+    const duration = breakEndTime.diff(breakStartTime, 'minutes');
+    return duration;
 }
 
 // Export all functions to be used in other modules
@@ -308,10 +398,11 @@ module.exports = {
     loadUnplannedDowntimeData,
     loadMicrostops,
     loadPlannedDowntimeData,
+    fetchOEEDataFromAPI,
+    getMachineIdFromLineCode,
     loadProcessOrderData,
     loadDataAndPrepareOEE,
     loadProcessOrderDataByMachine,
-    getMachineIdFromLineCode,
     checkForRunningOrder,
     loadShiftModelData,
     filterAndCalculateDurations,

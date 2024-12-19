@@ -3,9 +3,14 @@ const DailyRotateFile = require("winston-daily-rotate-file");
 const path = require("path");
 const fs = require("fs");
 
-// Hinweis: Keine Notwendigkeit, dotenv erneut zu laden, da die server.js dies bereits tut.
+/**
+ * Load log levels from environment variable or default to "debug,info,warn,error".
+ * This allows for dynamic log level configuration from the .env file.
+ * Log levels are read from the `LOG_LEVELS` environment variable.
+ */
+const logLevels = (process.env.LOG_LEVELS || "debug,info,warn,error").split(",").map(level => level.trim());
 
-// Define the log format
+// Define the logging format used by winston for log messages
 const logFormat = winston.format.printf(({ level, message, timestamp, ...metadata }) => {
     let logMessage = `${timestamp} ${level}: ${message}`;
     if (Object.keys(metadata).length) {
@@ -14,53 +19,43 @@ const logFormat = winston.format.printf(({ level, message, timestamp, ...metadat
     return logMessage;
 });
 
-// Load log levels and settings from environment variables
-const logLevels = (process.env.LOG_LEVELS || "info").split(",").map(level => level.trim());
-const retentionDays = process.env.LOG_RETENTION_DAYS || 14;
-const logToConsole = process.env.LOG_TO_CONSOLE === "true";
-const logToFile = process.env.LOG_TO_FILE === "true";
-
-// Ensure the logs directory exists
+// Ensure that the logs directory exists
 const logsDir = path.join(__dirname, "../logs");
 if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir, { recursive: true });
 }
 
 /**
- * Custom filter to only allow specified log levels.
- * @param {Object} info - Log information.
- * @returns {Object|boolean} Log information or false if the level is not included.
- */
-const customFilter = winston.format((info) => logLevels.includes(info.level) ? info : false);
-
-/**
- * Helper function to create a log transport.
+ * Helper function to create a transport for logging (Console or File).
+ * 
  * @param {string} type - Type of transport ('console' or 'file').
  * @param {string} [filename] - Filename for file transport.
  * @returns {Object|null} - Configured transport or null if not applicable.
  */
-const createTransport = (type, filename) => {
-    if (type === "console" && logToConsole) {
+const createConsoleOrFileTransport = (type, filename) => {
+    const level = logLevels[0]; // First level in the list (e.g., debug, info, etc.)
+
+    // Create console transport if logging to console is enabled in the environment
+    if (type === "console" && process.env.LOG_TO_CONSOLE === "true") {
         return new winston.transports.Console({
-            level: logLevels[0],
+            level,
             format: winston.format.combine(
-                customFilter(),
-                winston.format.colorize(),
-                winston.format.timestamp(),
-                logFormat
+                winston.format.colorize(),  // Adds color to log levels
+                winston.format.timestamp(), // Adds timestamp to each log
+                logFormat                  // Custom format for log messages
             ),
         });
     }
 
-    if (type === "file" && logToFile) {
+    // Create file transport if logging to file is enabled in the environment
+    if (type === "file" && process.env.LOG_TO_FILE === "true") {
         return new DailyRotateFile({
             filename: path.join(logsDir, `${filename}-%DATE%.log`),
-            datePattern: "YYYY-MM-DD",
-            maxSize: "20m",
-            maxFiles: `${retentionDays}d`,
-            level: logLevels[0],
+            datePattern: "YYYY-MM-DD",    // Logs are rotated daily
+            maxSize: "20m",               // Maximum file size of 20MB
+            maxFiles: `${process.env.LOG_RETENTION_DAYS || 14}d`, // Retention of log files based on `LOG_RETENTION_DAYS`
+            level,
             format: winston.format.combine(
-                customFilter(),
                 winston.format.timestamp(),
                 logFormat
             ),
@@ -71,36 +66,36 @@ const createTransport = (type, filename) => {
 };
 
 /**
- * Creates a Winston logger.
- * @param {string} logFilename - Name of the log file.
- * @returns {Object} Winston logger.
+ * Creates a new Winston logger with console and/or file transport.
+ * 
+ * @param {string} logFilename - The name of the log file (defaults to "app").
+ * @returns {winston.Logger} - The Winston logger instance.
  */
-const createLogger = (logFilename = "app") => {
+const createNewLogger = (logFilename = "app") => {
     const transports = [];
     const exceptionHandlers = [];
     const rejectionHandlers = [];
 
-    // Create console transport if enabled
-    const consoleTransport = createTransport("console");
+    // Add console transport if configured
+    const consoleTransport = createConsoleOrFileTransport("console");
     if (consoleTransport) {
         transports.push(consoleTransport);
     }
 
-    // Create file transport if enabled
-    const fileTransport = createTransport("file", logFilename);
+    // Add file transport if configured
+    const fileTransport = createConsoleOrFileTransport("file", logFilename);
     if (fileTransport) {
         transports.push(fileTransport);
-        exceptionHandlers.push(createTransport("file", "exceptions"));
-        rejectionHandlers.push(createTransport("file", "rejections"));
+        exceptionHandlers.push(createConsoleOrFileTransport("file", "exceptions"));
+        rejectionHandlers.push(createConsoleOrFileTransport("file", "rejections"));
     }
 
-    // Fallback if no transports configured
+    // Fallback to console transport if no transport is configured
     if (transports.length === 0) {
-        console.error("No transports configured for logging. Enabling Console transport as fallback.");
+        console.error(`No transports configured for logging. Enabling Console transport as fallback.`);
         transports.push(new winston.transports.Console({
             level: logLevels[0],
             format: winston.format.combine(
-                customFilter(),
                 winston.format.colorize(),
                 winston.format.timestamp(),
                 logFormat
@@ -108,12 +103,13 @@ const createLogger = (logFilename = "app") => {
         }));
     }
 
+    const level = logLevels[0]; // Use the first level in the log levels list (debug, info, etc.)
+
     return winston.createLogger({
-        level: logLevels[0],
+        level,
         format: winston.format.combine(
-            customFilter(),
-            winston.format.timestamp(),
-            winston.format.json()
+            winston.format.timestamp(),   // Add a timestamp to each log entry
+            winston.format.json()         // Format log entries as JSON
         ),
         transports,
         exceptionHandlers: exceptionHandlers.length > 0 ? exceptionHandlers : undefined,
@@ -121,21 +117,19 @@ const createLogger = (logFilename = "app") => {
     });
 };
 
-// Create logger instances for different purposes
-const oeeLogger = createLogger("oee");
-const errorLogger = createLogger("error");
-const defaultLogger = createLogger();
-const unplannedDowntimeLogger = createLogger("unplannedDowntime");
+// Create instances of different loggers for various purposes
+const oeeLogger = createNewLogger("oee");
+const errorLogger = createNewLogger("error");
+const defaultLogger = createNewLogger();
 
-// Log initialization messages
+// Log initialization messages for each logger instance
 oeeLogger.info("OEE Logger initialized successfully.");
 errorLogger.info("Error Logger initialized successfully.");
 defaultLogger.info("Default Logger initialized successfully.");
-unplannedDowntimeLogger.info("Unplanned Downtime Logger initialized successfully.");
 
+// Export the loggers to be used in other parts of the application
 module.exports = {
     oeeLogger,
     errorLogger,
     defaultLogger,
-    unplannedDowntimeLogger,
 };

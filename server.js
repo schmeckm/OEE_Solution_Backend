@@ -8,6 +8,7 @@ const fs = require('fs');
 // Dynamically load .env file based on NODE_ENV
 const env = process.env.NODE_ENV || 'development';
 const envFilePath = path.resolve(__dirname, `.env.${env}`);
+console.log("LOG_LEVELS:", process.env.LOG_LEVELS);  // Überprüft, ob der Wert richtig geladen wird.
 
 if (fs.existsSync(envFilePath)) {
     dotenv.config({ path: envFilePath });
@@ -21,12 +22,13 @@ if (fs.existsSync(envFilePath)) {
 const logEnvVariables = require('./utils/logEnv'); // Stellen Sie sicher, dass diese Datei existiert
 
 // Log environment variables
-if (process.env.NODE_ENV === 'development') { // Nur in der Entwicklungsumgebung loggen
+if (process.env.NODE_ENV === 'development') {
     logEnvVariables();
 }
 
 // === Import Required Modules ===
 let express, helmet, rateLimit, https, WebSocketServer, swaggerJsDoc, swaggerUi, cors;
+
 try {
     console.log('🔄 Importiere Express...');
     express = require("express");
@@ -121,33 +123,32 @@ try {
 }
 
 // === Rate Limiting to Prevent DoS Attacks ===
-try {
-    const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 Minuten
-    const limiter = rateLimit({
-        windowMs: RATE_LIMIT_WINDOW_MS,
-        max: 100,
-        message: 'Zu viele Anfragen von dieser IP, bitte versuchen Sie es später erneut.'
-    });
-    app.use(limiter);
-    console.log(`📈 Ratenbegrenzung aktiviert: Maximal ${limiter.max} Anfragen pro ${RATE_LIMIT_WINDOW_MS / 60000} Minuten.`);
-} catch (error) {
-    console.error('❌ Fehler beim Einrichten der Ratenbegrenzung:', error);
-    process.exit(1);
-}
+// try {
+//     const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 Minuten
+//     const limiter = rateLimit({
+//         windowMs: RATE_LIMIT_WINDOW_MS,
+//         max: 100,
+//         message: 'Zu viele Anfragen von dieser IP, bitte versuchen Sie es später erneut.'
+//     });
+//     app.use(limiter);
+//     console.log(`📈 Ratenbegrenzung aktiviert: Maximal ${limiter.max} Anfragen pro ${RATE_LIMIT_WINDOW_MS / 60000} Minuten.`);
+// } catch (error) {
+//     console.error('❌ Fehler beim Einrichten der Ratenbegrenzung:', error);
+//     process.exit(1);
+// }
 
 // === Initialize InfluxDB (if used) ===
 try {
-    const { initializeInfluxDB } = require("./services/influxDBService"); // Stellen Sie sicher, dass diese Datei existiert
+    const { initializeInfluxDB } = require("./services/influxDBService");
     initializeInfluxDB();
     console.log('📈 InfluxDB erfolgreich initialisiert.');
 } catch (error) {
     console.error('❌ Fehler bei der Initialisierung von InfluxDB:', error);
-    // Abhängig von Ihrer Anwendung können Sie entscheiden, ob Sie fortfahren oder abbrechen
 }
 
 // === Logging Middleware ===
 try {
-    const { defaultLogger } = require("./utils/logger"); // Stellen Sie sicher, dass diese Datei existiert
+    const { defaultLogger } = require("./utils/logger");
     app.use((req, res, next) => {
         defaultLogger.info(`[${new Date().toISOString()}] ${req.method} ${req.url} von ${req.ip}`);
         next();
@@ -160,7 +161,7 @@ try {
 
 // === API Key Middleware for External Requests Only ===
 try {
-    const { defaultLogger } = require("./utils/logger"); // Stellen Sie sicher, dass diese Datei existiert
+    const { defaultLogger } = require("./utils/logger");
     app.use((req, res, next) => {
         const apiKey = req.headers['x-api-key'];
         const clientIp = req.ip || req.socket.remoteAddress;
@@ -187,7 +188,7 @@ try {
 
 // === Register API Routes ===
 try {
-    const registerApiRoutes = require("./routes/apiRoutes"); // Stellen Sie sicher, dass diese Datei existiert
+    const registerApiRoutes = require("./routes/apiRoutes");
     registerApiRoutes(app);
     console.log('📁 API-Routen erfolgreich registriert.');
 } catch (error) {
@@ -197,7 +198,7 @@ try {
 
 // === Global Error Handling Middleware ===
 try {
-    const { defaultLogger } = require("./utils/logger"); // Stellen Sie sicher, dass diese Datei existiert
+    const { defaultLogger } = require("./utils/logger");
     app.use((err, req, res, next) => {
         defaultLogger.error(`[${new Date().toISOString()}] Fehler: ${err.message}`);
         defaultLogger.error(err.stack);
@@ -211,24 +212,22 @@ try {
 
 // === Log Cleanup Job ===
 try {
-    const startLogCleanupJob = require("./cronJobs/logCleanupJob"); // Stellen Sie sicher, dass diese Datei existiert
+    const startLogCleanupJob = require("./cronJobs/logCleanupJob");
     const logRetentionDays = process.env.LOG_RETENTION_DAYS || 7;
     startLogCleanupJob(logRetentionDays);
     console.log(`🧹 Log-Cleanup-Job gestartet. Logs älter als ${logRetentionDays} Tage werden gelöscht.`);
 } catch (error) {
     console.error('❌ Fehler beim Starten des Log-Cleanup-Jobs:', error);
-    // Abhängig von Ihrer Anwendung können Sie entscheiden, ob Sie fortfahren oder abbrechen
 }
 
 // === MQTT Client Initialization (if used) ===
 let mqttClient;
 try {
-    const initializeMqttClient = require("./src/mqttClientSetup"); // Stellen Sie sicher, dass diese Datei existiert
+    const initializeMqttClient = require("./src/mqttClientSetup");
     mqttClient = initializeMqttClient();
     console.log('🔌 MQTT-Client erfolgreich initialisiert.');
 } catch (error) {
     console.error('❌ Fehler bei der Initialisierung des MQTT-Clients:', error);
-    // Abhängig von Ihrer Anwendung können Sie entscheiden, ob Sie fortfahren oder abbrechen
 }
 
 // === HTTPS Server Setup ===
@@ -254,7 +253,7 @@ try {
     }
 } catch (error) {
     console.error(`❌ Fehler beim Laden der SSL-Zertifikate: ${error.message}`);
-    process.exit(1); // Beenden Sie die Anwendung, wenn SSL-Zertifikate nicht geladen werden können
+    process.exit(1);
 }
 
 const httpsPort = process.env.HTTPS_PORT || 8443;
@@ -265,20 +264,20 @@ httpsServer.listen(httpsPort, () => {
     console.log(`✅ HTTPS-Server läuft auf Port ${httpsPort}`);
 }).on('error', (err) => {
     console.error(`🔴 HTTPS-Server konnte nicht gestartet werden: ${err.message}`);
-    process.exit(1); // Beenden Sie die Anwendung bei einem Fehler beim Starten des Servers
+    process.exit(1);
 });
 
 // === WebSocket Server Setup ===
 try {
-    const { setWebSocketServer, sendWebSocketMessage } = require("./websocket/webSocketUtils"); // Destrukturieren
-    const handleWebSocketConnections = require("./websocket/webSocketHandler"); // Stellen Sie sicher, dass diese Datei existiert
+    const { setWebSocketServer, sendWebSocketMessage } = require("./websocket/webSocketUtils");
+    const handleWebSocketConnections = require("./websocket/webSocketHandler");
     const wss = new WebSocketServer({ server: httpsServer });
     setWebSocketServer(wss);
     handleWebSocketConnections(wss);
     console.log('🔗 WebSocket-Server läuft und wartet auf Verbindungen.');
 } catch (error) {
     console.error(`❌ Fehler beim Einrichten des WebSocket-Servers: ${error.message}`);
-    process.exit(1); // Beenden Sie die Anwendung bei einem Fehler beim Initialisieren des WebSocket-Servers
+    process.exit(1);
 }
 
 // === Swagger Setup ===
@@ -297,8 +296,7 @@ try {
             },
             servers: [
                 {
-                    url: process.env.NODE_ENV === 'production' ?
-                        `https://iotshowroom.de/api/v1` : `https://localhost:${httpsPort}/api/v1`,
+                    url: process.env.NODE_ENV === 'production' ? `https://iotshowroom.de/api/v1` : `https://localhost:${httpsPort}/api/v1`,
                     description: process.env.NODE_ENV === 'production' ? "Produktionsserver" : "Entwicklungsserver"
                 }
             ],
@@ -314,11 +312,11 @@ try {
             },
             security: [
                 {
-                    ApiKeyAuth: [] // Alle Endpunkte erfordern den API-Key
+                    ApiKeyAuth: []
                 }
             ]
         },
-        apis: ["./routes/*.js"], // Pfad zu Ihren API-Routen
+        apis: ["./routes/*.js"],
     };
 
     const swaggerDocs = swaggerJsDoc(swaggerOptions);
@@ -330,12 +328,12 @@ try {
     console.log("📄 Swagger-Dokumentation verfügbar unter /api-docs und /api-docs-json.");
 } catch (error) {
     console.error(`❌ Fehler beim Einrichten von Swagger: ${error.message}`);
-    process.exit(1); // Beenden Sie die Anwendung bei einem Fehler beim Initialisieren von Swagger
+    process.exit(1);
 }
 
 // === Graceful Shutdown Handling ===
 try {
-    const gracefulShutdown = require("./src/shutdown"); // Stellen Sie sicher, dass diese Datei existiert
+    const gracefulShutdown = require("./src/shutdown");
 
     process.on("SIGTERM", () => gracefulShutdown(httpsServer, mqttClient, "SIGTERM"));
     process.on("SIGINT", () => gracefulShutdown(httpsServer, mqttClient, "SIGINT"));
@@ -347,18 +345,14 @@ try {
 
 // === Handle Unhandled Rejections and Exceptions ===
 try {
-    const { defaultLogger } = require("./utils/logger"); // Stellen Sie sicher, dass diese Datei existiert
+    const { defaultLogger } = require("./utils/logger");
 
     process.on('unhandledRejection', (reason, promise) => {
         defaultLogger.error('🔴 Unhandled Rejection bei:', promise, 'Grund:', reason);
-        // Optional: Prozess beenden
-        // process.exit(1);
     });
 
     process.on('uncaughtException', (error) => {
         defaultLogger.error('🔴 Uncaught Exception geworfen:', error);
-        // Optional: Prozess beenden
-        // process.exit(1);
     });
 
     console.log('🚨 Unhandled Rejections und Uncaught Exceptions Handler eingerichtet.');

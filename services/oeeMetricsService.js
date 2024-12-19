@@ -16,15 +16,15 @@ async function writeOEEToInfluxDB(metrics) {
         const point = new Point("oee_metrics")
             .tag("plant", metrics.plant || "UnknownPlant")
             .tag("area", metrics.area || "UnknownArea")
-            .tag("machineId", metrics.machineId || "UnknownMachine")
-            .tag("ProcessOrderNumber", metrics.ProcessOrderNumber || "UnknownOrder")
-            .tag("MaterialNumber", metrics.MaterialNumber || "UnknownMaterial")
-            .tag("MaterialDescription", metrics.MaterialDescription || "No Description")
+            .tag("machineId", metrics.workcenter_id || "UnknownMachine")
+            .tag("ProcessOrderNumber", metrics.processordernumber || "UnknownOrder")
+            .tag("MaterialNumber", metrics.materialnumber || "UnknownMaterial")
+            .tag("MaterialDescription", metrics.materialdescription || "No Description")
             .floatField("oee", metrics.oeeAsPercent ? metrics.oee : metrics.oee / 100 || 0)
             .floatField("availability", metrics.oeeAsPercent ? metrics.availability * 100 : metrics.availability || 0)
             .floatField("performance", metrics.oeeAsPercent ? metrics.performance * 100 : metrics.performance || 0)
             .floatField("quality", metrics.oeeAsPercent ? metrics.quality * 100 : metrics.quality || 0)
-            .floatField("plannedProductionQuantity", metrics.plannedProductionQuantity || 0)
+            .floatField("plannedProductionQuantity", metrics.plannedproductionquantity || 0)
             .floatField("unplannedDowntime", metrics.totalUnplannedDowntime || 0);
 
         // Write the point to InfluxDB

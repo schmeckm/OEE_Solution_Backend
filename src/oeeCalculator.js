@@ -1,5 +1,6 @@
 const axios = require("axios");
 const { oeeLogger, errorLogger } = require("../utils/logger");
+const { fetchOEEDataFromAPI } = require("./dataLoader");
 const config = require("../config/config.json");
 const dotenv = require("dotenv");
 const moment = require("moment");
@@ -8,6 +9,7 @@ dotenv.config();
 
 // Constants
 const OEE_API_URL = process.env.OEE_API_URL || config.oeeApiUrl;
+const DATE_FORMAT = process.env.DATE_FORMAT;
 
 // Creating an axios instance with base URL and default headers
 const apiClient = axios.create({
@@ -25,68 +27,26 @@ const CLASSIFICATION_LEVELS = {
     AVERAGE: config.classificationLevels.AVERAGE,
 };
 
-// =====================
-// Fetch OEE Data from API
-// =====================
-async function fetchOEEDataFromAPI(machineId) {
-    try {
-        const response = await apiClient.get(`/prepareOEE/oee/${machineId}`);
-        return response.data;
-    } catch (error) {
-        errorLogger.error(`Failed to fetch OEE data from API for machineId ${machineId}: ${error.message}`);
-        throw new Error("Could not fetch OEE data from API");
-    }
-}
-
-// =====================
 // OEE Calculator Class
-// =====================
 class OEECalculator {
     constructor() {
         this.oeeData = {};
     }
 
-    // Reset OEE Data structure for initialization
-    resetOEEData() {
-        return {
-            ProcessOrderNumber: null,
-            MaterialNumber: null,
-            MaterialDescription: null,
-            PlannedProductionQuantity: 0,
-            Runtime: 0,
-            ActualPerformance: 0,
-            TargetPerformance: 0,
-            ActualProductionYield: 0,
-            ActualProductionQuantity: 0,
-            UnplannedDowntime: 0,
-            setupTime: 0,
-            processingTime: 0,
-            teardownTime: 0,
-            availability: 0,
-            performance: 0,
-            quality: 0,
-            oee: 0,
-            StartTime: null,
-            EndTime: null,
-            plannedTakt: 0,
-            actualTakt: 0,
-            expectedEndTime: null,
-        };
-    }
-
-    // Initialize OEE Data for a machine by fetching it from the API
+    // Initialize the OEE Calculator with machine-specific data
     async init(machineId) {
         try {
-            oeeLogger.info(`Initializing OEECalculator for machineId ${machineId}`);
+            // Fetch OEE data from API
             const OEEData = await fetchOEEDataFromAPI(machineId);
-            oeeLogger.debug(`Fetched OEEData for machineId ${machineId}:`, OEEData); // Log the received data
             if (OEEData) {
                 this.setOEEData(OEEData, machineId);
+                return true; // Ensure that a result is returned
             } else {
-                oeeLogger.warn(`No OEE data found for machineId ${machineId}`);
+                errorLogger.warn(`No OEE data found for machineId ${machineId}`);
+                return false;
             }
         } catch (error) {
-            errorLogger.error(`Error initializing OEECalculator for machineId ${machineId}: ${error.message}`);
+            errorLogger.error(`Error initializing OEE calculator for machineId ${machineId}: ${error.message}`);
             throw error;
         }
     }
@@ -95,56 +55,85 @@ class OEECalculator {
     setOEEData(OEEData, machineId) {
         const processOrder = OEEData.processOrder;
 
-        if (!processOrder || !processOrder.Start || !processOrder.End) {
-            throw new Error("Required time fields (Start/End) are missing in the data");
+        if (!processOrder || !processOrder.start_date || !processOrder.end_date) {
+            throw new Error("Required time fields (start_date/end_date) are missing in the data");
         }
 
-        oeeLogger.debug(`Setting OEE data for machineId ${machineId}:`, processOrder);
-
-        const plannedStart = moment(processOrder.Start);
-        const plannedEnd = moment(processOrder.End);
+        const plannedStart = moment.utc(processOrder.start_date);
+        const plannedEnd = moment.utc(processOrder.end_date);
 
         if (!plannedStart.isValid() || !plannedEnd.isValid()) {
-            throw new Error("Invalid Start or End date in process order");
+            throw new Error("Invalid start_date or end_date in process order");
         }
 
         let plannedTakt, actualTakt, remainingTime, expectedEndTime;
+        let actualEnd = null; // Initialize actualEnd to null
 
-        if (!processOrder.ActualProcessOrderStart && !processOrder.ActualProcessOrderEnd) {
+        if (!processOrder.actualprocessorderstart && !processOrder.actualprocessorderend) {
             const plannedDurationMinutes = plannedEnd.diff(plannedStart, "minutes");
-            plannedTakt = plannedDurationMinutes / processOrder.PlannedProductionQuantity;
+            plannedTakt = plannedDurationMinutes / processOrder.plannedproductionquantity;
             actualTakt = plannedTakt;
-            remainingTime = processOrder.PlannedProductionQuantity * actualTakt;
+            remainingTime = processOrder.plannedproductionquantity * actualTakt;
             expectedEndTime = plannedStart.add(remainingTime, "minutes");
 
-        } else if (processOrder.ActualProcessOrderStart && !processOrder.ActualProcessOrderEnd) {
-            const actualStart = moment(processOrder.ActualProcessOrderStart);
+        } else if (processOrder.actualprocessorderstart && !processOrder.actualprocessorderend) {
+            const actualStart = moment.utc(processOrder.actualprocessorderstart);
             const plannedDurationMinutes = plannedEnd.diff(actualStart, "minutes");
-            plannedTakt = plannedDurationMinutes / processOrder.PlannedProductionQuantity;
+            plannedTakt = plannedDurationMinutes / processOrder.plannedproductionquantity;
             actualTakt = plannedTakt;
-            remainingTime = (processOrder.PlannedProductionQuantity - processOrder.ActualProductionQuantity) * actualTakt;
+            remainingTime = (processOrder.plannedproductionquantity - processOrder.confirmedproductionquantity) * actualTakt;
             expectedEndTime = plannedEnd;
 
-        } else if (processOrder.ActualProcessOrderStart && processOrder.ActualProcessOrderEnd) {
-            const actualStart = moment(processOrder.ActualProcessOrderStart);
-            const actualEnd = moment(processOrder.ActualProcessOrderEnd);
+        } else if (processOrder.actualprocessorderstart && processOrder.actualprocessorderend) {
+            const actualStart = moment.utc(processOrder.actualprocessorderstart);
+            actualEnd = moment.utc(processOrder.actualprocessorderend); // Define actualEnd here
             const actualDurationMinutes = actualEnd.diff(actualStart, "minutes");
-            plannedTakt = plannedEnd.diff(plannedStart, "minutes") / processOrder.PlannedProductionQuantity;
-            actualTakt = actualDurationMinutes / processOrder.PlannedProductionQuantity;
-            remainingTime = (processOrder.PlannedProductionQuantity - processOrder.ActualProductionQuantity) * actualTakt;
+            plannedTakt = plannedEnd.diff(plannedStart, "minutes") / processOrder.plannedproductionquantity;
+            actualTakt = actualDurationMinutes / processOrder.plannedproductionquantity;
+            remainingTime = (processOrder.plannedproductionquantity - processOrder.confirmedproductionquantity) * actualTakt;
             expectedEndTime = actualEnd.add(remainingTime, "minutes");
         }
 
         this.oeeData[machineId] = {
-            ...this.resetOEEData(),
-            ...processOrder,
-            StartTime: processOrder.ActualProcessOrderStart || processOrder.Start,
-            EndTime: processOrder.ActualProcessOrderEnd || processOrder.End,
-            Runtime: processOrder.setupTime + processOrder.processingTime + processOrder.teardownTime,
+            // Basic Information
+            order_id: processOrder.order_id,
+            processordernumber: processOrder.processordernumber,
+            materialnumber: processOrder.materialnumber,
+            materialdescription: processOrder.materialdescription,
+            start_date: processOrder.start_date,
+            end_date: processOrder.end_date,
+            workcenter_id: processOrder.workcenter_id,
+            processorderstatus: processOrder.processorderstatus,
+            plant: OEEData.plant,
+            area: OEEData.area,
+            lineId: OEEData.lineId,
+
+            // Time Information
+            setuptime: processOrder.setuptime,
+            processingtime: processOrder.processingtime,
+            teardowntime: processOrder.teardowntime,
+            Runtime: processOrder.setuptime + processOrder.processingtime + processOrder.teardowntime,
+            plannedDurationMinutes: plannedEnd.diff(plannedStart, "minutes"),
+            actualDurationMinutes: actualEnd ? actualEnd.diff(actualStart, "minutes") : null,
+
+            // Production Information
+            plannedproductionquantity: processOrder.plannedproductionquantity,
+            confirmedproductionyield: processOrder.confirmedproductionyield,
+            confirmedproductionquantity: processOrder.confirmedproductionquantity,
+            ActualProductionQuantity: null,
+            ActualProductionYield: null,
+            scrap: null,
+
+            // Performance Metrics
             plannedTakt,
             actualTakt,
             remainingTime,
-            expectedEndTime: expectedEndTime ? expectedEndTime.format("YYYY-MM-DDTHH:mm:ss.SSSZ") : null,
+            expectedEndTime: expectedEndTime ? expectedEndTime.format(DATE_FORMAT) : null,
+            availability: null,
+            performance: null,
+            quality: null,
+            oee: null,
+            classification: null,
         };
     }
 
@@ -155,41 +144,41 @@ class OEECalculator {
                 throw new Error(`No data found for machineId: ${machineId}`);
             }
 
-            oeeLogger.debug(`Calculating metrics for machineId ${machineId}`);
+            // oeeLogger.debug(`Calculating metrics for machineId ${machineId}`);
 
             const {
-                ActualProcessOrderStart,
-                ActualProcessOrderEnd,
-                PlannedProductionQuantity,
-                Start,
-                End,
-                setupTime,
-                processingTime,
-                teardownTime,
+                actualprocessorderstart,
+                actualprocessorderend,
+                plannedproductionquantity,
+                start_date,
+                end_date,
+                setuptime,
+                processingtime,
+                teardowntime,
             } = processOrder;
 
-            if (!ActualProcessOrderStart && !Start) {
-                throw new Error("At least ActualProcessOrderStart or Start is required");
+            if (!actualprocessorderstart && !start_date) {
+                throw new Error("At least actualprocessorderstart or start_date is required");
             }
 
-            const plannedStart = moment(Start);
-            const plannedEnd = moment(End);
-            const actualStart = moment(ActualProcessOrderStart || Start);
-            const actualEnd = ActualProcessOrderEnd ? moment(ActualProcessOrderEnd) : null;
+            const plannedStart = moment.utc(start_date);
+            const plannedEnd = moment.utc(end_date);
+            const actualStart = moment.utc(actualprocessorderstart || start_date);
+            const actualEnd = actualprocessorderend ? moment.utc(actualprocessorderend) : null;
 
             const plannedDurationMinutes = plannedEnd.diff(plannedStart, "minutes");
             let plannedTakt, actualTakt, remainingTime, expectedEndTime;
 
             if (actualEnd) {
                 const actualDurationMinutes = actualEnd.diff(actualStart, "minutes");
-                plannedTakt = plannedDurationMinutes / PlannedProductionQuantity;
+                plannedTakt = plannedDurationMinutes / plannedproductionquantity;
                 actualTakt = ActualProductionQuantity > 0 ? plannedDurationMinutes / ActualProductionQuantity : null;
-                remainingTime = (PlannedProductionQuantity - ActualProductionQuantity) * actualTakt;
+                remainingTime = (plannedproductionquantity - ActualProductionQuantity) * actualTakt;
                 expectedEndTime = actualEnd.add(remainingTime, "minutes");
             } else {
-                plannedTakt = plannedDurationMinutes / PlannedProductionQuantity;
+                plannedTakt = plannedDurationMinutes / plannedproductionquantity;
                 actualTakt = ActualProductionQuantity > 0 ? plannedDurationMinutes / ActualProductionQuantity : null;
-                remainingTime = (PlannedProductionQuantity - ActualProductionQuantity) * (actualTakt || plannedTakt);
+                remainingTime = (plannedproductionquantity - ActualProductionQuantity) * (actualTakt || plannedTakt);
                 expectedEndTime = actualStart.add(remainingTime, "minutes");
             }
 
@@ -197,46 +186,29 @@ class OEECalculator {
 
             this.oeeData[machineId] = {
                 ...this.oeeData[machineId],
-                ...processOrder,
-                StartTime: processOrder.ActualProcessOrderStart || processOrder.Start,
-                EndTime: processOrder.ActualProcessOrderEnd || processOrder.End,
-                Runtime: setupTime + processingTime + teardownTime,
                 ActualProductionQuantity,
-                totalUnplannedDowntime,
                 ActualProductionYield,
-                plannedDurationMinutes,
+                totalUnplannedDowntime,
+                scrap,
+
+                // Performance Metrics
                 plannedTakt,
                 actualTakt,
                 remainingTime,
-                expectedEndTime: expectedEndTime ? expectedEndTime.format("YYYY-MM-DDTHH:mm:ss.SSSZ") : null,
-                scrap,
-            };
+                expectedEndTime: expectedEndTime ? expectedEndTime.format(DATE_FORMAT) : null,
 
-            const availability = this.oeeData[machineId].Runtime > 0 ?
-                ((this.oeeData[machineId].Runtime - totalUnplannedDowntime) / this.oeeData[machineId].Runtime) * 100 :
-                0;
-
-            const performance = actualTakt ? (plannedTakt / actualTakt) * 100 : 0;
-
-            const quality = ActualProductionQuantity > 0 ?
-                (ActualProductionYield / ActualProductionQuantity) * 100 :
-                0;
-
-            const oee = (availability * performance * quality) / 10000;
-
-            this.oeeData[machineId] = {
-                ...this.oeeData[machineId],
-                availability,
-                performance,
-                quality,
-                oee,
-                actualDurationMinutes: actualEnd ? actualEnd.diff(actualStart, "minutes") : null,
-                setupTime,
-                teardownTime,
+                // OEE Metrics
+                availability: this.oeeData[machineId].Runtime > 0 ?
+                    ((this.oeeData[machineId].Runtime - totalUnplannedDowntime) / this.oeeData[machineId].Runtime) * 100 :
+                    0,
+                performance: actualTakt ? (plannedTakt / actualTakt) * 100 : 0,
+                quality: ActualProductionQuantity > 0 ?
+                    (ActualProductionYield / ActualProductionQuantity) * 100 :
+                    0,
+                oee: (this.oeeData[machineId].availability * this.oeeData[machineId].performance * this.oeeData[machineId].quality) / 10000,
             };
 
             const classification = this.classifyOEE(machineId);
-
             this.oeeData[machineId].classification = classification;
         } catch (error) {
             oeeLogger.error(`Error calculating metrics for machineId ${machineId}: ${error.message}`);

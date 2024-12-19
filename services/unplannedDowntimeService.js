@@ -1,67 +1,121 @@
-const path = require("path");
-const fs = require("fs").promises;
+const { UnplannedDowntime } = require('../models'); // Import the UnplannedDowntime model
+const moment = require("moment-timezone");
+const { dateSettings } = require("../config/config"); // Import timezone and date format from config
 
-const filePath = path.resolve(__dirname, "../data/unplannedDowntime.json");
+// Helper function to format date fields after loading
+const formatDates = (unplannedDowntime) => {
+  const { dateFormat, timezone } = dateSettings;
+  return {
+    ...unplannedDowntime,
+    Start: moment(unplannedDowntime.Start).tz(timezone).format(dateFormat), // Format the start date with timezone
+    End: moment(unplannedDowntime.End).tz(timezone).format(dateFormat),     // Format the end date with timezone
+  };
+};
 
-// Utility function to validate data structure
-function validateDowntimeData(data) {
-    if (!Array.isArray(data)) {
-        throw new Error("Loaded data is not an array");
+// Helper function to format date fields before saving to the database
+const formatDatesBeforeSave = (unplannedDowntime) => {
+  const { timezone } = dateSettings;
+  return {
+    ...unplannedDowntime,
+    Start: moment.tz(unplannedDowntime.Start, timezone).utc().toDate(), // Convert to UTC before saving
+    End: moment.tz(unplannedDowntime.End, timezone).utc().toDate(),     // Convert to UTC before saving
+  };
+};
+
+// General error handler
+const handleError = (action, error) => {
+  console.error(`Error ${action}: ${error.message}`);
+  throw new Error(`Failed to ${action} unplanned downtime: ${error.message}`);
+};
+
+/**
+ * Fetches all unplanned downtimes.
+ * @returns {Promise<Array>} A list of unplanned downtimes.
+ */
+const loadUnplannedDowntime = async () => {
+  try {
+    const data = await UnplannedDowntime.findAll(); // Fetch all unplanned downtimes from the DB
+    if (!data || data.length === 0) {
+      return [];
     }
-}
+    return data;
+  } catch (error) {
+    handleError('load all', error);
+  }
+};
 
-// Load unplanned downtimes from the JSON file
-async function loadUnplannedDowntime() {
-    try {
-        // Check if the file exists
-        await fs.access(filePath);
-
-        // Read the file and parse the JSON data
-        const data = await fs.readFile(filePath, "utf8");
-        const parsedData = JSON.parse(data);
-
-        // Validate the structure of the loaded data
-        validateDowntimeData(parsedData);
-        return parsedData;
-    } catch (error) {
-        console.error(`Failed to load data from ${filePath}: ${error.message}`);
-        // Return an empty array in case of error
-        return [];
+/**
+ * Fetches an unplanned downtime by ID.
+ * @param {string} id - The UUID of the unplanned downtime.
+ * @returns {Promise<Object|null>} The unplanned downtime or null if not found.
+ */
+const loadUnplannedDowntimeById = async (id) => {
+  try {
+    const unplannedDowntime = await UnplannedDowntime.findOne({ where: { plannedOrder_ID: id } });
+    if (!unplannedDowntime) {
+      console.log(`No unplanned downtime found with ID ${id}.`);
+      return null;
     }
-}
+    return unplannedDowntime;
+  } catch (error) {
+    handleError(`load by ID ${id}`, error);
+  }
+};
 
-// Save unplanned downtimes to the JSON file
-async function saveUnplannedDowntime(data) {
-    if (!Array.isArray(data)) {
-        throw new Error("Data to be saved is not an array");
-    }
+/**
+ * Creates a new unplanned downtime.
+ * @param {Object} data - The data for the new unplanned downtime.
+ * @returns {Promise<Object>} The created unplanned downtime.
+ */
+const createUnplannedDowntime = async (data) => {
+  try {
+    const formattedData = formatDatesBeforeSave(data); // Format the dates before saving
+    const unplannedDowntime = await UnplannedDowntime.create(formattedData);
+    return formatDates(unplannedDowntime.get()); // Format the dates after saving and return
+  } catch (error) {
+    handleError('create', error);
+  }
+};
 
-    try {
-        // Save the data as a formatted JSON file
-        await fs.writeFile(filePath, JSON.stringify(data, null, 2));
-    } catch (error) {
-        console.error(`Failed to save data to ${filePath}: ${error.message}`);
-    }
-}
+/**
+ * Updates an existing unplanned downtime.
+ * @param {string} id - The UUID of the unplanned downtime to update.
+ * @param {Object} data - The updated data.
+ * @returns {Promise<Object>} The updated unplanned downtime.
+ */
+const updateUnplannedDowntime = async (id, data) => {
+  try {
+    const unplannedDowntime = await UnplannedDowntime.findByPk(id);
+    if (!unplannedDowntime) throw new Error('Unplanned downtime not found');
 
-// Get unplanned downtimes by Process Order Number
-async function getUnplannedDowntimeByProcessOrderNumber(processOrderNumber) {
-    const data = await loadUnplannedDowntime();
-    // Ensure the comparison is consistent by converting both to strings
-    return data.filter(
-        (downtime) => downtime.ProcessOrderNumber?.toString() === processOrderNumber.toString()
-    );
-}
+    const updatedDowntime = await unplannedDowntime.update(data);
+    return formatDates(updatedDowntime.get()); // Format the dates after updating and return
+  } catch (error) {
+    handleError(`update with ID ${id}`, error);
+  }
+};
 
-// Get unplanned downtimes by Machine ID
-async function getUnplannedDowntimeByMachineId(machineId) {
-    const data = await loadUnplannedDowntime();
-    return data.filter((downtime) => downtime.machine_id === machineId);
-}
+/**
+ * Deletes an unplanned downtime.
+ * @param {string} id - The UUID of the unplanned downtime to delete.
+ * @returns {Promise<boolean>} True if the unplanned downtime was successfully deleted.
+ */
+const deleteUnplannedDowntime = async (id) => {
+  try {
+    const downtime = await UnplannedDowntime.findOne({ where: { plannedOrder_ID: id } });
+    if (!downtime) throw new Error(`Unplanned downtime with ID ${id} not found`);
+
+    await downtime.destroy();
+    return true; // Return true if the unplanned downtime was successfully deleted
+  } catch (error) {
+    handleError(`delete with ID ${id}`, error);
+  }
+};
 
 module.exports = {
-    loadUnplannedDowntime,
-    saveUnplannedDowntime,
-    getUnplannedDowntimeByProcessOrderNumber,
-    getUnplannedDowntimeByMachineId,
+  loadUnplannedDowntime,
+  loadUnplannedDowntimeById,
+  createUnplannedDowntime,
+  updateUnplannedDowntime,
+  deleteUnplannedDowntime,
 };

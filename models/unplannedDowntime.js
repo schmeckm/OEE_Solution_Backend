@@ -1,8 +1,8 @@
 const { Sequelize, DataTypes } = require('sequelize');
 
-// Hier wird das Modell für PlannedDowntime exportiert
+// Hier wird das Modell für UnplannedDowntime exportiert
 module.exports = (sequelize) => {
-    const PlannedDowntime = sequelize.define('PlannedDowntime', {
+    const UnplannedDowntime = sequelize.define('UnplannedDowntime', {
         plannedOrder_ID: {
             type: DataTypes.UUID,
             primaryKey: true,
@@ -35,9 +35,9 @@ module.exports = (sequelize) => {
             field: 'duration_minutes'  // "duration_inminutes" in der Datenbank
         },
     }, {
-        tableName: 'planned_downtime',  // Der Name der Tabelle in der Datenbank
+        tableName: 'unplanned_downtime',  // Der Name der Tabelle in der Datenbank
         timestamps: false,  // Keine `createdAt` oder `updatedAt` Felder
     });
 
-    return PlannedDowntime;  // Das Modell muss zurückgegeben werden
+    return UnplannedDowntime;  // Das Modell muss zurückgegeben werden
 };

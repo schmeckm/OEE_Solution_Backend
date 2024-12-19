@@ -1,24 +1,130 @@
-const fs = require('fs');
-const path = require('path');
+const { Microstop } = require('../models'); // Import the Microstop model
+const moment = require('moment-timezone'); // Use Moment.js for date calculations
+const { dateSettings } = require("../config/config"); // Import dateSettings (timezone and format)
 
-const MICROSTOPS_FILE = path.join(__dirname, '../data/microstops.json');
-
-// Hilfsfunktion zum Laden der Microstops
-const loadMicroStops = () => {
-    if (fs.existsSync(MICROSTOPS_FILE)) {
-        const data = fs.readFileSync(MICROSTOPS_FILE, 'utf8');
-        return JSON.parse(data);
-    } else {
-        return [];
-    }
+// Helper function to format date fields after loading
+const formatDates = (microstop) => {
+  const { timezone, dateFormat } = dateSettings;
+  return {
+    ...microstop,
+    Start: moment(microstop.Start).tz(timezone).format(dateFormat),
+    End: moment(microstop.End).tz(timezone).format(dateFormat),
+  };
 };
 
-// Hilfsfunktion zum Speichern der Microstops
-const saveMicroStops = (microstops) => {
-    fs.writeFileSync(MICROSTOPS_FILE, JSON.stringify(microstops, null, 4));
+// Helper function to format date fields before saving
+const formatDatesBeforeSave = (microstop) => {
+  const { timezone } = dateSettings;
+  return {
+    ...microstop,
+    Start: moment.tz(microstop.Start, timezone).utc().toDate(),
+    End: moment.tz(microstop.End, timezone).utc().toDate(),
+  };
+};
+
+// General error handler
+const handleError = (action, error) => {
+  console.error(`Error ${action}: ${error.message}`);
+  throw new Error(`Failed to ${action} microstop: ${error.message}`);
+};
+
+/**
+ * Creates a new microstop record.
+ * @param {Object} data - The data for the new microstop record.
+ * @returns {Promise<Object>} The created microstop record.
+ */
+const createMicrostop = async (data) => {
+  try {
+    const formattedData = formatDatesBeforeSave(data);
+    const newMicrostop = await Microstop.create(formattedData);
+    return formatDates(newMicrostop.get()); // Format and return the created microstop
+  } catch (error) {
+    handleError('create', error);
+  }
+};
+
+/**
+ * Updates an existing microstop record.
+ * @param {string} id - The UUID of the microstop to update.
+ * @param {Object} data - The updated data.
+ * @returns {Promise<Object>} The updated microstop record.
+ */
+const updateMicrostop = async (id, data) => {
+  try {
+    const microstop = await Microstop.findByPk(id);
+    if (!microstop) throw new Error('Microstop not found');
+
+    // Format date fields before update
+    const formattedData = formatDatesBeforeSave(data);
+
+    if (formattedData.End) {
+      const start = moment(microstop.Start); // The original start date of the microstop
+      const end = moment(formattedData.End); // The new end date being set in the update
+      formattedData.Differenz = end.diff(start, 'minutes'); // Calculate the difference in minutes
+    }
+
+    await microstop.update(formattedData);
+    return formatDates(microstop); // Return the updated microstop after formatting
+  } catch (error) {
+    handleError('update', error);
+  }
+};
+
+/**
+ * Fetches all microstop records.
+ * @returns {Promise<Array>} A list of microstop records.
+ */
+const loadMicrostops = async () => {
+  try {
+    const data = await Microstop.findAll(); // Fetch all microstop records from the DB
+    if (!data || data.length === 0) {
+      return [];
+    }
+    return data.map(formatDates); // Format the microstop records before returning
+  } catch (error) {
+    handleError('load all', error);
+  }
+};
+
+/**
+ * Fetches a microstop record by ID.
+ * @param {string} id - The UUID of the microstop.
+ * @returns {Promise<Object|null>} The microstop record or null if not found.
+ */
+const loadMicrostopById = async (id) => {
+  try {
+    const microstop = await Microstop.findByPk(id);
+    if (!microstop) {
+      console.log(`No microstop found with ID ${id}.`);
+      return null;
+    }
+    return formatDates(microstop); // Return the formatted microstop
+  } catch (error) {
+    handleError(`load by ID ${id}`, error);
+  }
+};
+
+/**
+ * Deletes a microstop record.
+ * @param {string} id - The UUID of the microstop to delete.
+ * @returns {Promise<boolean>} True if the microstop was successfully deleted.
+ */
+const deleteMicrostop = async (id) => {
+  try {
+    const microstop = await Microstop.findByPk(id);
+    if (!microstop) throw new Error('Microstop not found');
+
+    await microstop.destroy();
+    return true; // Return true if the microstop was successfully deleted
+  } catch (error) {
+    handleError('delete', error);
+  }
 };
 
 module.exports = {
-    loadMicroStops,
-    saveMicroStops
+  createMicrostop,
+  updateMicrostop,
+  loadMicrostops,
+  loadMicrostopById,
+  deleteMicrostop
 };

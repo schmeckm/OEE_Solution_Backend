@@ -19,7 +19,6 @@ const microstopMachineAggregationRouter = require("./microstopByMachine");
 const microstopProcessOrderAggregationRouter = require("./microstopByProcessOrder");
 const settingRouter = require("./settings");
 const structureRouter = require("./structure");
-const oeeLogsRouter = require("./oeeLogs");
 const calculateOEERouter = require("./calculateOEE");
 const oeeMetricsRouter = require("./oeeMetricsRoutes");
 const prepareOEERouter = require("./prepareOEE");
@@ -86,7 +85,6 @@ function registerApiRoutes(app) {
 
   // Additional API Endpoints for Customizing the OEE System
   app.use("/api/v1/structure", verifyApiKey, structureRouter);
-  app.use("/api/v1/oee-logs", verifyApiKey, oeeLogsRouter);
   app.use("/api/v1/calculateOEE", verifyApiKey, calculateOEERouter);
   app.use("/api/v1/topics", verifyApiKey, topicsRouter);
   app.use("/api/v1/users", verifyApiKey, userRouter);
@@ -95,7 +93,7 @@ function registerApiRoutes(app) {
   app.use("/api/v1/settings", verifyApiKey, settingRouter);
   app.use("/api/v1/prepareOEE", verifyApiKey, prepareOEERouter);
   app.use("/api/v1/oee", verifyApiKey, oeeDataRouter);
-  app.use('/api/v1/tact', verifyApiKey, tactRouter);
+  app.use('/api/v1/tacts', verifyApiKey, tactRouter);
 }
 
 module.exports = registerApiRoutes;

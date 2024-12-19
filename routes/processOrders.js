@@ -77,21 +77,18 @@ router.get(
   asyncHandler(async (req, res) => {
     let data = await loadAllProcessOrders(); // Lädt alle Prozessaufträge
 
-    // Hier wird die komplette Instanz zurückgegeben, ohne sie auf 'dataValues' zu beschränken
-    data = data.map((order) => {
-      return {
-        ...order,  // Gebe die gesamte Instanz zurück (inkl. Metadaten und `dataValues`)
-        Start: formatDate(order.Start),
-        End: formatDate(order.End),
-        ActualProcessOrderStart: formatDate(order.ActualProcessOrderStart),
-        ActualProcessOrderEnd: formatDate(order.ActualProcessOrderEnd),
-      };
-    });
+    // Hier wird die komplette Instanz zurückgegeben, anstatt sie auf 'dataValues' zu beschränken
+    data = data.map((order) => ({
+      ...order,  // Gebe die gesamte Instanz zurück (inkl. Metadaten und 'dataValues')
+      Start: formatDate(order.Start),
+      End: formatDate(order.End),
+      ActualProcessOrderStart: formatDate(order.ActualProcessOrderStart),
+      ActualProcessOrderEnd: formatDate(order.ActualProcessOrderEnd),
+    }));
 
-    res.json(data);  // Gebe die gesamten Prozessaufträge zurück
+    res.json(data);  // Gebe die gesamten Prozessaufträge mit allen Feldern zurück
   })
 );
-
 
 /**
  * @swagger
@@ -136,33 +133,56 @@ router.get(
         return res.status(404).json({ message: "No process orders found." });
       }
 
-      // Filtert nach Status 'REL' oder anderen Status, basierend auf dem Wert von 'mark'
-      if (mark) {
-        data = data.filter((order) => order.processorderstatus && order.processorderstatus.trim().toUpperCase() === "REL");
-      } else {
-        data = data.filter((order) => order.processorderstatus && order.processorderstatus.trim().toUpperCase() !== "REL");
-      }
+      // Filter die Daten anhand der Statusbedingung und der Maschinen-ID
+      data = filterProcessOrders(data, mark, machineId);
 
-      if (machineId) {
-        data = data.filter((order) => order.workcenter_id === machineId);  // Filtere nach Maschinen-ID
-      }
+      // Rückgabe der gesamten Instanz, keine Datenbeschnitt
+      const formattedData = formatProcessOrderDates(data);
 
-      // Formatieren der Datumsfelder und Rückgabe der reinen Daten ohne Metadaten
-      data = data.map((order) => ({
-        ...order.dataValues,  // Greife auf `dataValues` zu
-        Start: formatDate(order.Start),
-        End: formatDate(order.End),
-        ActualProcessOrderStart: formatDate(order.ActualProcessOrderStart),
-        ActualProcessOrderEnd: formatDate(order.ActualProcessOrderEnd),
-      }));
-
-      res.json(data);  // Nur die 'data' zurückgeben
+      res.json(formattedData);  // Gebe die gesamten Daten zurück (mit allen Feldern)
     } catch (error) {
       console.error(`Error fetching process orders: ${error.message}`);
       res.status(500).json({ message: `Error fetching process orders: ${error.message}` });
     }
   })
 );
+
+/**
+ * Filtert Prozessaufträge nach Status und Maschinen-ID.
+ * @param {Array} orders - Die Liste der Prozessaufträge.
+ * @param {boolean} mark - Wenn mark=true, nach "REL" filtern, sonst nach anderen Status.
+ * @param {string} [machineId] - Die Maschinen-ID, nach der optional gefiltert wird.
+ * @returns {Array} - Die gefilterte Liste der Prozessaufträge.
+ */
+function filterProcessOrders(orders, mark, machineId) {
+  // Filtert nach Status 'REL' oder anderen Status, basierend auf dem Wert von 'mark'
+  const filteredByStatus = orders.filter((order) => {
+    const status = order.processorderstatus ? order.processorderstatus.trim().toUpperCase() : "";
+    return mark ? status === "REL" : status !== "REL";
+  });
+
+  // Wenn eine Maschinen-ID angegeben ist, filtert auch danach
+  if (machineId) {
+    return filteredByStatus.filter((order) => order.workcenter_id === machineId);
+  }
+
+  return filteredByStatus;
+}
+
+/**
+ * Formatiert Datumsfelder für Prozessaufträge.
+ * @param {Array} orders - Die Liste der Prozessaufträge.
+ * @returns {Array} - Die Liste der Prozessaufträge mit formatierten Datumswerten.
+ */
+function formatProcessOrderDates(orders) {
+  return orders.map((order) => ({
+    ...order,  // Gebe die gesamte Instanz zurück
+    Start: formatDate(order.Start),
+    End: formatDate(order.End),
+    ActualProcessOrderStart: formatDate(order.ActualProcessOrderStart),
+    ActualProcessOrderEnd: formatDate(order.ActualProcessOrderEnd),
+  }));
+}
 
 /**
  * @swagger
@@ -194,15 +214,13 @@ router.get(
     const { id } = req.params;  // Hole die ID aus den URL-Parametern
 
     try {
-      // Lade den Prozessauftrag anhand der ID
       const processOrder = await loadProcessOrderById(id);
 
       if (!processOrder) {
         return res.status(404).json({ message: `Process order with ID ${id} not found` });
       }
 
-      // Gebe nur die Daten des Prozessauftrags ohne zusätzliche Metadaten zurück
-      res.json(processOrder.dataValues);  // Nur die `dataValues` zurückgeben
+      res.json(processOrder);  // Gebe die komplette Prozessauftragsinstanz zurück
     } catch (error) {
       console.error(`Error fetching process order with ID ${id}: ${error.message}`);
       res.status(500).json({ message: `Error fetching process order with ID ${id}: ${error.message}` });
@@ -259,40 +277,18 @@ router.post(
   })
 );
 
-/**
- * @swagger
- * /processorders/{id}:
- *   delete:
- *     summary: Delete a process order
- *     tags: [Process Orders]
- *     description: Remove a process order from the list.
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The process order UUID (order_id).
- *     responses:
- *       204:
- *         description: Process order deleted successfully.
- *       404:
- *         description: Process order not found.
- */
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
-    const { id } = req.params;  // Hole die ID aus den URL-Parametern
+    const { id } = req.params;
 
     try {
-      // Lösche den Prozessauftrag anhand der ID
       const result = await deleteProcessOrder(id);
 
       if (!result) {
         return res.status(404).json({ message: `Process order with ID ${id} not found` });
       }
 
-      // Erfolgreiches Löschen, keine Rückgabe notwendig
       res.status(204).send();  // 204 bedeutet "Erfolgreiches Löschen ohne Rückgabewerte"
     } catch (error) {
       console.error(`Error deleting process order with ID ${id}: ${error.message}`);
@@ -300,7 +296,5 @@ router.delete(
     }
   })
 );
-
-
 
 module.exports = router;

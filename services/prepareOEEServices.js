@@ -1,3 +1,6 @@
+require('dotenv').config();  // Load .env file
+
+const { dateSettings, oeeAsPercent } = require("../config/config");  // Import configuration containing environment variables
 const {
     checkForRunningOrder,
     loadPlannedDowntimeData,
@@ -6,25 +9,47 @@ const {
     loadShiftModelData,
     filterAndCalculateDurations,
 } = require("../src/dataLoader");
+
 const { oeeLogger, errorLogger } = require("../utils/logger");
-const moment = require("moment");
+const moment = require("moment-timezone");
 
-const cache = {}; // Cache-Objekt zur Speicherung der Daten
+// Access environment variables
+const dateFormat = process.env.DATE_FORMAT;
+const timezone = process.env.TIMEZONE;
 
-// 2. Datenabruf und -verarbeitung
+console.log(`TIMEZONE: ${process.env.TIMEZONE}`);
+console.log(`DATE_FORMAT: ${process.env.DATE_FORMAT}`);
+
+// Cache for various data
+const cache = {}; // Cache object to store data
+
+/**
+ * Loads data and prepares OEE (Overall Equipment Effectiveness) for a given machine.
+ *
+ * @async
+ * @function loadDataAndPrepareOEE
+ * @param {string} machineId - The ID of the machine for which to load and prepare OEE data.
+ * @throws {Error} If the machineId is not provided or if no running process orders are found for the machine.
+ * @returns {Promise<Object>} The prepared OEE data, including labels and datasets for production, breaks, and downtimes.
+ *
+ * @example
+ * const oeeData = await loadDataAndPrepareOEE('machine123');
+ * console.log(oeeData);
+ */
 async function loadDataAndPrepareOEE(machineId) {
     if (!machineId) {
         throw new Error("MachineId is required to load and prepare OEE data.");
     }
 
-    // Überprüfe, ob die Daten bereits im Cache sind
+    // Check if data is already in the cache
     if (cache[machineId]) {
-        oeeLogger.info(`Returning cached OEE data for machineId ${machineId}`);
         return cache[machineId];
     }
 
     try {
-        // Überprüfe, ob es einen laufenden Prozessauftrag gibt
+        oeeLogger.debug("Debug:Function loadDataAndPrepareOEE ");
+        oeeLogger.debug("-----------------------");
+        oeeLogger.debug(`Checking for running order for machineId: ${machineId}`);
         const currentProcessOrder = await checkForRunningOrder(machineId);
         if (!currentProcessOrder) {
             throw new Error(
@@ -32,52 +57,55 @@ async function loadDataAndPrepareOEE(machineId) {
             );
         }
 
-        // Bestimme die Start- und Endzeiten des Prozessauftrags
-        const processOrderStartTime = moment(currentProcessOrder.Start);
-        const processOrderEndTime = moment(currentProcessOrder.End);
-
-        // 3. Abruf der notwendigen Daten für die Berechnungen
+        // Determine the start and end times of the process order in UTC
+        const processOrderStartTime = moment.utc(currentProcessOrder.start_date);
+        const processOrderEndTime = moment.utc(currentProcessOrder.end_date);
+        oeeLogger.debug(`Process order start time: ${processOrderStartTime}`);
+        oeeLogger.debug(`Process order end time: ${processOrderEndTime}`);
+        oeeLogger.debug(`Current process order: ${JSON.stringify(currentProcessOrder)}`);
+        
         const [
             plannedDowntimeData,
             unplannedDowntimeData,
             microstopsData,
-            shiftModels,
+            shiftModels, // shiftModels is correctly defined here
         ] = await Promise.all([
             loadPlannedDowntimeData(),
             loadUnplannedDowntimeData(),
             loadMicrostops(),
-            loadShiftModelData(machineId),
+            loadShiftModelData(machineId), // shiftModels is correctly loaded here
         ]);
 
-        // Filtere und bereite die Ausfallzeiten-Daten vor
+        // Filter Downtime Data function (for microstops, planned, and unplanned downtimes)
         const filterDowntimeData = (downtimeData) => {
-            return downtimeData.filter(
-                (downtime) =>
-                downtime.machine_id === machineId &&
-                moment(downtime.End).isAfter(processOrderStartTime) &&
-                moment(downtime.Start).isBefore(processOrderEndTime)
-            );
+            return downtimeData.filter((downtime) => {
+                // Convert the start and end times of the downtime data to UTC
+                const downtimeStart = moment.utc(downtime.start_date);
+                const downtimeEnd = moment.utc(downtime.end_date);
+             
+                // Check if the workcenter matches
+                const isWorkcenterMatch = downtime.workcenter_id && downtime.workcenter_id === machineId;
+                
+                const isAfterStartTime = downtimeEnd.isAfter(processOrderStartTime);  
+                
+                const isBeforeEndTime = downtimeStart.isBefore(processOrderEndTime); 
+                
+                const isValid = isWorkcenterMatch && isAfterStartTime && isBeforeEndTime;
+                
+                return isValid;
+            });
         };
 
         const filteredPlannedDowntime = filterDowntimeData(plannedDowntimeData);
         const filteredUnplannedDowntime = filterDowntimeData(unplannedDowntimeData);
         const filteredMicrostops = filterDowntimeData(microstopsData);
 
-        oeeLogger.debug(
-            `Filtered planned downtime data: ${JSON.stringify(
-        filteredPlannedDowntime
-      )}`
-        );
-        oeeLogger.debug(
-            `Filtered unplanned downtime data: ${JSON.stringify(
-        filteredUnplannedDowntime
-      )}`
-        );
-        oeeLogger.debug(
-            `Filtered microstops data: ${JSON.stringify(filteredMicrostops)}`
-        );
+        // Log the downtime data after filtering for debugging
+        oeeLogger.debug(`Filtered Planned Downtime Data: ${JSON.stringify(filteredPlannedDowntime)}`);
+        oeeLogger.debug(`Filtered Unplanned Downtime Data: ${JSON.stringify(filteredUnplannedDowntime)}`);
+        oeeLogger.debug(`Filtered Microstops Data: ${JSON.stringify(filteredMicrostops)}`);
 
-        // Berechne die Dauer für die OEE-Berechnungen
+        // Calculate the durations for OEE calculations
         const durations = filterAndCalculateDurations(
             currentProcessOrder,
             filteredPlannedDowntime,
@@ -86,7 +114,10 @@ async function loadDataAndPrepareOEE(machineId) {
             shiftModels
         );
 
-        // 4. Aufbau des OEEData-Objekts
+        // Log the durations for debugging
+        oeeLogger.debug(`Durations for OEE calculations: ${JSON.stringify(durations)}`);
+
+        // Build the OEEData object with labels and datasets for display in the frontend
         const OEEData = {
             labels: [],
             datasets: [
@@ -96,75 +127,88 @@ async function loadDataAndPrepareOEE(machineId) {
                 { label: "Planned Downtime", data: [], backgroundColor: "orange" },
                 { label: "Microstops", data: [], backgroundColor: "purple" },
             ],
-            processOrder: currentProcessOrder, // Füge die Prozessauftragsdaten hinzu
+            processOrder: currentProcessOrder, // Add the process order data
         };
 
-        // 5. Verarbeitung der Zeitintervalle und Zuordnung der Daten
-        let currentTime = processOrderStartTime.clone().startOf("hour");
-        const orderEnd = processOrderEndTime.clone().endOf("hour");
+        try {
+            oeeLogger.debug(`Initial OEE Data: ${JSON.stringify(OEEData)}`);
 
-        while (currentTime.isBefore(orderEnd)) {
-            const nextTime = currentTime.clone().add(1, "hour");
+            // Process the time intervals and assign the data
+            let currentTime = moment(processOrderStartTime).startOf("hour");
+            const orderEnd = moment(processOrderEndTime).endOf("hour");
 
-            if (OEEData.labels.includes(currentTime.toISOString())) {
-                oeeLogger.warn(
-                    `Duplicate interval detected: ${currentTime.toISOString()} - Skipping this interval.`
+            while (currentTime.isBefore(orderEnd)) {
+                const nextTime = currentTime.clone().add(1, "hour");
+                if (OEEData.labels.includes(currentTime.toISOString())) {
+                    oeeLogger.warn(
+                        `Duplicate interval detected: ${currentTime.toISOString()} - Skipping this interval.`
+                    );
+                    currentTime = nextTime;
+                    continue;
+                }
+
+                OEEData.labels.push(currentTime.toISOString());
+
+                let productionTime = nextTime.diff(currentTime, "minutes");
+                let breakTime = 0;
+                let unplannedDowntime = 0;
+                let plannedDowntime = 0;
+                let microstopTime = 0;
+
+                try {
+                    // Calculate the various downtimes and breaks
+                    calculateDowntimes(
+                        filteredPlannedDowntime,
+                        filteredUnplannedDowntime,
+                        filteredMicrostops,
+                        shiftModels, // shiftModels is correctly passed here
+                        currentTime,
+                        nextTime,
+                        (planned, unplanned, microstops, breaks) => {
+                            plannedDowntime += planned;
+                            unplannedDowntime += unplanned;
+                            microstopTime += microstops;
+                            breakTime += breaks;
+                        }
+                    );
+                } catch (error) {
+                    oeeLogger.error(`Error calculating downtimes for interval ${currentTime.format("HH:mm")} - ${nextTime.format("HH:mm")}: ${error.message}`);
+                    throw error;
+                }
+
+                const totalNonProductionTime =
+                    breakTime + unplannedDowntime + plannedDowntime + microstopTime;
+                productionTime = Math.max(0, productionTime - totalNonProductionTime);
+
+                oeeLogger.debug(
+                    `Interval ${currentTime.format("HH:mm")} - ${nextTime.format("HH:mm")}:`
                 );
+                oeeLogger.debug(`  Production time: ${productionTime} minutes`);
+                oeeLogger.debug(`  Break time: ${breakTime} minutes`);
+                oeeLogger.debug(`  Unplanned downtime: ${unplannedDowntime} minutes`);
+                oeeLogger.debug(`  Planned downtime: ${plannedDowntime} minutes`);
+                oeeLogger.debug(`  Microstop time: ${microstopTime} minutes`);
+
+                OEEData.datasets[0].data.push(productionTime);
+                OEEData.datasets[1].data.push(breakTime);
+                OEEData.datasets[2].data.push(unplannedDowntime);
+                OEEData.datasets[3].data.push(plannedDowntime);
+                OEEData.datasets[4].data.push(microstopTime);
+
                 currentTime = nextTime;
-                continue;
             }
 
-            OEEData.labels.push(currentTime.toISOString());
+            // Store the data in the cache and return it
+            cache[machineId] = OEEData;
 
-            let productionTime = nextTime.diff(currentTime, "minutes");
-            let breakTime = 0;
-            let unplannedDowntime = 0;
-            let plannedDowntime = 0;
-            let microstopTime = 0;
-
-            // Berechne die verschiedenen Ausfallzeiten und Pausen
-            calculateDowntimes(
-                filteredPlannedDowntime,
-                filteredUnplannedDowntime,
-                filteredMicrostops,
-                shiftModels,
-                currentTime,
-                nextTime,
-                (planned, unplanned, microstops, breaks) => {
-                    plannedDowntime += planned;
-                    unplannedDowntime += unplanned;
-                    microstopTime += microstops;
-                    breakTime += breaks;
-                }
+            oeeLogger.debug(`Final OEE Data: ${JSON.stringify(OEEData)}`);
+            return OEEData;
+        } catch (error) {
+            errorLogger.error(
+                `Error loading or preparing OEE data: ${error.message}`
             );
-
-            const totalNonProductionTime =
-                breakTime + unplannedDowntime + plannedDowntime + microstopTime;
-            productionTime = Math.max(0, productionTime - totalNonProductionTime);
-
-            oeeLogger.debug(
-                `Interval ${currentTime.format("HH:mm")} - ${nextTime.format("HH:mm")}:`
-            );
-            oeeLogger.debug(`  Production time: ${productionTime} minutes`);
-            oeeLogger.debug(`  Break time: ${breakTime} minutes`);
-            oeeLogger.debug(`  Unplanned downtime: ${unplannedDowntime} minutes`);
-            oeeLogger.debug(`  Planned downtime: ${plannedDowntime} minutes`);
-            oeeLogger.debug(`  Microstop time: ${microstopTime} minutes`);
-
-            OEEData.datasets[0].data.push(productionTime);
-            OEEData.datasets[1].data.push(breakTime);
-            OEEData.datasets[2].data.push(unplannedDowntime);
-            OEEData.datasets[3].data.push(plannedDowntime);
-            OEEData.datasets[4].data.push(microstopTime);
-
-            currentTime = nextTime;
+            throw error;
         }
-
-        // 6. Speichere die Daten im Cache und gib sie zurück
-        cache[machineId] = OEEData;
-
-        oeeLogger.debug(`Final OEE Data: ${JSON.stringify(OEEData)}`);
-        return OEEData;
     } catch (error) {
         errorLogger.error(
             `Error loading or preparing OEE data: ${error.message}`
@@ -173,12 +217,23 @@ async function loadDataAndPrepareOEE(machineId) {
     }
 }
 
-// 7. Hilfsfunktionen zur Berechnung der Downtimes
+/**
+ * Calculates the various downtimes and breaks for a given time interval.
+ *
+ * @function calculateDowntimes
+ * @param {Array} plannedDowntimes - Array of planned downtime objects.
+ * @param {Array} unplannedDowntimes - Array of unplanned downtime objects.
+ * @param {Array} microstops - Array of microstop objects.
+ * @param {Array} shiftModels - Array of shift model objects.
+ * @param {Object} currentTime - The current time moment object.
+ * @param {Object} nextTime - The next time moment object.
+ * @param {Function} callback - Callback function to return the calculated downtimes and breaks.
+ */
 function calculateDowntimes(
     plannedDowntimes,
     unplannedDowntimes,
     microstops,
-    shiftModels,
+    shiftModels, // shiftModels is correctly defined here
     currentTime,
     nextTime,
     callback
@@ -188,52 +243,34 @@ function calculateDowntimes(
     let microstopTime = 0;
     let breakTime = 0;
 
-    // Berechne geplante Ausfallzeiten
+    // Calculate planned downtimes
     plannedDowntimes.forEach((downtime) => {
-        const downtimeStart = moment(downtime.Start);
-        const downtimeEnd = moment(downtime.End);
+        const downtimeStart = moment.utc(downtime.start_date);
+        const downtimeEnd = moment.utc(downtime.end_date);
         if (currentTime.isBefore(downtimeEnd) && nextTime.isAfter(downtimeStart)) {
-            plannedDowntime += calculateOverlap(
-                currentTime,
-                nextTime,
-                downtimeStart,
-                downtimeEnd
-            );
+            plannedDowntime += calculateOverlap(currentTime, nextTime, downtimeStart, downtimeEnd);
         }
     });
 
-    // Berechne ungeplante Ausfallzeiten
+    // Calculate unplanned downtimes
     unplannedDowntimes.forEach((downtime) => {
-        const downtimeStart = moment(downtime.Start);
-        const downtimeEnd = moment(downtime.End);
+        const downtimeStart = moment.utc(downtime.start_date);
+        const downtimeEnd = moment.utc(downtime.end_date);
         if (currentTime.isBefore(downtimeEnd) && nextTime.isAfter(downtimeStart)) {
-            unplannedDowntime += calculateOverlap(
-                currentTime,
-                nextTime,
-                downtimeStart,
-                downtimeEnd
-            );
+            unplannedDowntime += calculateOverlap(currentTime, nextTime, downtimeStart, downtimeEnd);
         }
     });
 
-    // Berechne Microstops
+    // Calculate microstops
     microstops.forEach((microstop) => {
-        const microstopStart = moment(microstop.Start);
-        const microstopEnd = moment(microstop.End);
-        if (
-            currentTime.isBefore(microstopEnd) &&
-            nextTime.isAfter(microstopStart)
-        ) {
-            microstopTime += calculateOverlap(
-                currentTime,
-                nextTime,
-                microstopStart,
-                microstopEnd
-            );
+        const microstopStart = moment.utc(microstop.start_date);
+        const microstopEnd = moment.utc(microstop.end_date);
+        if (currentTime.isBefore(microstopEnd) && nextTime.isAfter(microstopStart)) {
+            microstopTime += calculateOverlap(currentTime, nextTime, microstopStart, microstopEnd);
         }
     });
 
-    // Berechne Pausen basierend auf dem Schichtmodell
+    // Calculate breaks based on the shift model
     shiftModels.forEach((shift) => {
         const shiftStartDate = moment(currentTime).format("YYYY-MM-DD");
         const breakStart = moment.utc(
@@ -263,7 +300,16 @@ function calculateDowntimes(
     callback(plannedDowntime, unplannedDowntime, microstopTime, breakTime);
 }
 
-// Berechne die Überlappung von Zeitintervallen
+/**
+ * Calculates the overlap duration between two time intervals.
+ *
+ * @function calculateOverlap
+ * @param {Object} startTime - The start time moment object.
+ * @param {Object} endTime - The end time moment object.
+ * @param {Object} eventStart - The event start time moment object.
+ * @param {Object} eventEnd - The event end time moment object.
+ * @returns {number} The overlap duration in minutes.
+ */
 function calculateOverlap(startTime, endTime, eventStart, eventEnd) {
     const overlapStart = moment.max(startTime, eventStart);
     const overlapEnd = moment.min(endTime, eventEnd);

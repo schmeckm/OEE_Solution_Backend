@@ -1,5 +1,5 @@
 // Import required modules and functions from utility files
-const { oeeLogger, errorLogger } = require("../utils/logger");
+const { oeeLogger, errorLogger, defaultLogger } = require("../utils/logger");
 const { processMetrics, updateMetric } = require("./oeeProcessor");
 const {
     handleHoldCommand,
@@ -8,7 +8,8 @@ const {
     handleProcessOrderEndCommand,
 } = require("./commandHandler");
 const oeeConfig = require("../config/oeeConfig.json");
-const { loadProcessOrderData } = require("./dataLoader");
+const { loadProcessOrderData, loadProcessOrderDataByMachine } = require("./dataLoader");
+const moment = require("moment-timezone");
 
 // Persistent metrics matrix to keep track of all metrics over time
 let metricsMatrix = [];
@@ -20,27 +21,24 @@ let metricsMatrix = [];
  * @param {Object} decodedMessage - The decoded message containing OEE metrics.
  * @param {string} machineId - The machine ID.
  */
-async function handleOeeMessage(decodedMessage, machineId) {
-    oeeLogger.debug(
-        `handleOeeMessage called with decodedMessage: ${JSON.stringify(
-      decodedMessage
-    )}, machineId: ${machineId}`
-    );
-
+async function handleOeeMessage(decodedMessage, machineId, metric) {
     try {
         // Initialize oeeData if not already initialized
         if (!this.oeeData) {
             this.oeeData = {};
+            oeeLogger.debug("Debug:handleOeeMessage ");
+            oeeLogger.debug("-----------------------");
         }
 
         // Initialize oeeData for the specific machineId if not present
         if (!this.oeeData[machineId]) {
             this.oeeData[machineId] = {};
+            oeeLogger.debug(`Initialized oeeData for machineId: ${machineId}`);
         }
 
         let validMetricProcessed = false;
 
-        // Define mandatory static metrics that should be sourced from process orders
+        // Define mandatory static metrics required for OEE calculation
         const mandatoryStaticMetrics = [
             "plannedProductionQuantity",
             "Runtime",
@@ -48,8 +46,11 @@ async function handleOeeMessage(decodedMessage, machineId) {
         ];
 
         // Load the process order data
-        const processOrderData = await loadProcessOrderData();
+        oeeLogger.debug(`Loading process order data for machineId: ${machineId}`);
+        const processOrderData = await loadProcessOrderDataByMachine(machineId);
 
+        // oeeLogger.debug('Process Order Data: ' + JSON.stringify(processOrderData, null, 2));
+        
         // Check if processOrderData is an array
         if (!Array.isArray(processOrderData)) {
             throw new Error("Process order data is not an array");
@@ -69,16 +70,18 @@ async function handleOeeMessage(decodedMessage, machineId) {
                         metricSource = "MQTT";
 
                         if (this.oeeData[machineId][name] !== value) {
+                            oeeLogger.debug(`Metric ${name} for machineId ${machineId} will be updated from ${this.oeeData[machineId][name]} to ${value}`);
                             await updateMetric(name, value, machineId);
                             validMetricProcessed = true;
                             this.oeeData[machineId][name] = value;
+                            oeeLogger.debug(`Updated metric ${name} from MQTT data`);
                         }
                     } else {
                         oeeLogger.warn(
                             `Metric ${name} has an invalid value: ${value}. Skipping.`
                         );
                     }
-                    // Update metric from process order if it's a mandatory static metric
+                // Update metric from process order if it's a mandatory static metric
                 } else if (mandatoryStaticMetrics.includes(name)) {
                     const order = processOrderData.find(
                         (order) => order.machine_id === machineId
@@ -103,6 +106,7 @@ async function handleOeeMessage(decodedMessage, machineId) {
                                 await updateMetric(name, finalValue, machineId);
                                 validMetricProcessed = true;
                                 this.oeeData[machineId][name] = finalValue;
+                                oeeLogger.debug(`Updated metric ${name} from process order data`);
                             }
                         } else {
                             oeeLogger.warn(
