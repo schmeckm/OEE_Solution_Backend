@@ -1,13 +1,13 @@
-//This code is responsible for setting up the MQTT client, handling incoming messages, and subscribing to machine topics.
-//It build the connection to the IT-OT Layer to read the data from the machines and process it.
-//Configuration is read from the config file and the connection is established with the MQTT broker.
+// This code is responsible for setting up the MQTT client, handling incoming messages, and subscribing to machine topics.
+// It builds the connection to the IT-OT Layer to read the data from the machines and process it.
+// Configuration is read from the config file and the connection is established with the MQTT broker.
 
 const mqtt = require("mqtt");
 const { get: getSparkplugPayload } = require("sparkplug-payload");
 const { oeeLogger, errorLogger, defaultLogger } = require("../utils/logger");
 const { mqtt: mqttConfig } = require("../config/config");
 const { handleCommandMessage, handleOeeMessage } = require("./messageHandler");
-const {checkForRunningOrder, loadMachineData, getMachineIdFromLineCode } = require("./dataLoader");
+const { checkForRunningOrder, loadMachineData, getMachineIdFromLineCode } = require("./dataLoader");
 
 const oeeConfig = require("../config/oeeConfig.json");
 const axios = require('axios');
@@ -22,14 +22,12 @@ const apiClient = axios.create({
     headers: { 'x-api-key': API_KEY },
 });
 
-
 // Example of logging in error scenarios
 try {
     throw new Error("Something went wrong!");
 } catch (error) {
     errorLogger.error(`Caught an error: ${error.message}`);
 }
-
 
 const metrics = {
     messagesReceived: 0,
@@ -39,6 +37,7 @@ const metrics = {
 };
 
 let lastMessageTimestamp = Date.now();
+let client; // Deklaration der client-Variable im globalen Gültigkeitsbereich
 
 /**
  * Sets up the MQTT client and its event handlers.
@@ -46,7 +45,7 @@ let lastMessageTimestamp = Date.now();
  */
 function setupMqttClient() {
     oeeLogger.info("Setting up MQTT client...");
-    const client = createMqttClient();
+    client = createMqttClient(); // Initialisierung der client-Variable
     setupClientEventHandlers(client);
     setupWatchdog(client);
     return client;
@@ -95,10 +94,7 @@ function onConnect(client) {
 /**
  * Tries to subscribe to the machine topics in batches.
  * @param {mqtt.MqttClient} client - The MQTT client.
- * @param {number} batchSize - The size of each batch.
  */
-const INTERVAL = 60000; // Intervall in Millisekunden (z.B. 60 Sekunden)
-
 async function tryToSubscribeToMachineTopics(client) {
     try {
         const machines = await loadMachineData();
@@ -116,8 +112,7 @@ async function tryToSubscribeToMachineTopics(client) {
 // OEE is enabled and the topics are subscribed to
 setInterval(() => {
     tryToSubscribeToMachineTopics(client);
-}, INTERVAL);
-
+}, WATCHDOG_INTERVAL);
 
 /**
  * Subscribes to the MQTT topics for a machine.
@@ -167,7 +162,6 @@ function generateMachineTopics(machine) {
     return topics;
 }
 
-
 /**
  * Handles the MQTT client's subscription event.
  * @param {Array<string>} topics - The subscribed topics.
@@ -176,11 +170,6 @@ function onSubscribe(topics) {
     oeeLogger.debug(`Successfully subscribed to topics: ${topics}`);
 }
 
-/**
- * Handles incoming MQTT messages.
- * @param {string} topic - The topic of the message.
- * @param {Buffer} message - The message payload.
- */
 /**
  * Handles incoming MQTT messages.
  * @param {string} topic - The topic of the message.
@@ -229,6 +218,7 @@ function processMessageByType(dataType, decodedMessage, machineId, metric) {
         oeeLogger.warn(`Unknown data type in topic: ${dataType}`);
     }
 }
+
 /**
  * Decodes the message payload using Sparkplug.
  * @param {Buffer} message - The message payload.
@@ -238,23 +228,6 @@ function decodeMessagePayload(message) {
     const sparkplug = getSparkplugPayload("spBv1.0");
     const decodedMessage = sparkplug.decodePayload(message);
     return decodedMessage;
-}
-
-/**
- * Processes the message based on its type.
- * @param {string} dataType - The type of the data.
- * @param {Object} decodedMessage - The decoded message.
- * @param {string} machineId - The ID of the machine.
- * @param {string} metric - The metric of the message.
- */
-function processMessageByType(dataType, decodedMessage, machineId, metric) {
-    if (dataType === "DCMD") {
-        handleCommandMessage(decodedMessage, machineId, metric);
-    } else if (dataType === "DDATA") {    
-        handleOeeMessage(decodedMessage, machineId, metric);
-    } else {
-        oeeLogger.warn(`Unknown data type in topic: ${dataType}`);
-    }
 }
 
 /**

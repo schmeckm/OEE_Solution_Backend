@@ -8,7 +8,6 @@ const fs = require('fs');
 // Dynamically load .env file based on NODE_ENV
 const env = process.env.NODE_ENV || 'development';
 const envFilePath = path.resolve(__dirname, `.env.${env}`);
-console.log("LOG_LEVELS:", process.env.LOG_LEVELS);  // Überprüft, ob der Wert richtig geladen wird.
 
 if (fs.existsSync(envFilePath)) {
     dotenv.config({ path: envFilePath });

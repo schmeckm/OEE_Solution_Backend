@@ -143,15 +143,12 @@ async function loadMachineData() {
 const getMachineIdFromLineCode = async (machineName) => {
     try {
         const machines = await loadMachineData();
-
-        oeeLogger.debug(`Loaded machines: ${JSON.stringify(machines)}`);
         const machine = machines.find((m) => {
             return m.name.toLowerCase() === machineName.toLowerCase();
         });
 
         if (machine) {
             oeeLogger.info(`Machine ID ${machine.workcenter_id} found for line code: ${machineName}`);
-            oeeLogger.debug(`Returning machine ID: ${machine.workcenter_id}`);
             return machine.workcenter_id;
         } else {
             oeeLogger.warn(`No machine ID found for line code: ${machineName}`);
@@ -188,7 +185,6 @@ const checkForRunningOrder = (machineId) => {
 const loadDataAndPrepareOEE = async (machineId) => {
     try {
         const data = await fetchDataWithCache(`OEEData.${machineId}`, `/prepareOEE/oee/${machineId}`);
-        oeeLogger.debug(`Successfully loaded and prepared OEE data for machineId ${machineId}: ${JSON.stringify(data)}`);
         return data;
     } catch (error) {
         errorLogger.error(`Failed to load and prepare OEE data for machineId ${machineId}: ${error.message}`);
@@ -198,14 +194,11 @@ const loadDataAndPrepareOEE = async (machineId) => {
 
 // Fetch OEE Data from API with caching
 const fetchOEEDataFromAPI = (machineId) => fetchDataWithCache(`OEEData.${machineId}`, `/prepareOEE/oee/${machineId}`, (data) => {
-    oeeLogger.debug(`Fetched OEE data for machineId ${machineId}: ${JSON.stringify(data)}`);
     return data;
 });
 
 // Load microstop data from the API, caching the result
 const loadMicrostops = () => fetchDataWithCache('microstops', '/microstops', (data) => {
-    oeeLogger.debug(`Fetched microstops data: ${JSON.stringify(data)}`);
-
     // Flache Struktur der Microstops-Daten erstellen
     const flattenedMicrostops = data.map((microstop) => ({
         Microstop_ID: microstop.dataValues.Microstop_ID,

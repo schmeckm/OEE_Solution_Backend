@@ -131,7 +131,7 @@ async function loadDataAndPrepareOEE(machineId) {
         };
 
         try {
-            oeeLogger.debug(`Initial OEE Data: ${JSON.stringify(OEEData)}`);
+            // oeeLogger.debug(`Initial OEE Data: ${JSON.stringify(OEEData)}`);
 
             // Process the time intervals and assign the data
             let currentTime = moment(processOrderStartTime).startOf("hour");
@@ -201,7 +201,6 @@ async function loadDataAndPrepareOEE(machineId) {
             // Store the data in the cache and return it
             cache[machineId] = OEEData;
 
-            oeeLogger.debug(`Final OEE Data: ${JSON.stringify(OEEData)}`);
             return OEEData;
         } catch (error) {
             errorLogger.error(

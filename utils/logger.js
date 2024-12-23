@@ -2,13 +2,18 @@ const winston = require("winston");
 const DailyRotateFile = require("winston-daily-rotate-file");
 const path = require("path");
 const fs = require("fs");
+const dotenv = require("dotenv");
+
+// Laden der Umgebungsvariablen aus der .env-Datei
+dotenv.config();
 
 /**
- * Load log levels from environment variable or default to "debug,info,warn,error".
+ * Load log levels from environment variable or default to "info,debug,warn,error".
  * This allows for dynamic log level configuration from the .env file.
  * Log levels are read from the `LOG_LEVELS` environment variable.
  */
-const logLevels = (process.env.LOG_LEVELS || "debug,info,warn,error").split(",").map(level => level.trim());
+const logLevels = (process.env.LOG_LEVELS || "info,debug,warn,error").split(",").map(level => level.trim());
+console.log("Log levels:", logLevels);
 
 // Define the logging format used by winston for log messages
 const logFormat = winston.format.printf(({ level, message, timestamp, ...metadata }) => {
@@ -33,12 +38,10 @@ if (!fs.existsSync(logsDir)) {
  * @returns {Object|null} - Configured transport or null if not applicable.
  */
 const createConsoleOrFileTransport = (type, filename) => {
-    const level = logLevels[0]; // First level in the list (e.g., debug, info, etc.)
-
     // Create console transport if logging to console is enabled in the environment
     if (type === "console" && process.env.LOG_TO_CONSOLE === "true") {
         return new winston.transports.Console({
-            level,
+            level: logLevels[0], // Use the first level in the log levels list (debug, info, etc.)
             format: winston.format.combine(
                 winston.format.colorize(),  // Adds color to log levels
                 winston.format.timestamp(), // Adds timestamp to each log
@@ -54,7 +57,7 @@ const createConsoleOrFileTransport = (type, filename) => {
             datePattern: "YYYY-MM-DD",    // Logs are rotated daily
             maxSize: "20m",               // Maximum file size of 20MB
             maxFiles: `${process.env.LOG_RETENTION_DAYS || 14}d`, // Retention of log files based on `LOG_RETENTION_DAYS`
-            level,
+            level: logLevels[0], // Use the first level in the log levels list (debug, info, etc.)
             format: winston.format.combine(
                 winston.format.timestamp(),
                 logFormat
@@ -94,7 +97,7 @@ const createNewLogger = (logFilename = "app") => {
     if (transports.length === 0) {
         console.error(`No transports configured for logging. Enabling Console transport as fallback.`);
         transports.push(new winston.transports.Console({
-            level: logLevels[0],
+            level: logLevels[0], // Use the first level in the log levels list (debug, info, etc.)
             format: winston.format.combine(
                 winston.format.colorize(),
                 winston.format.timestamp(),
@@ -103,10 +106,8 @@ const createNewLogger = (logFilename = "app") => {
         }));
     }
 
-    const level = logLevels[0]; // Use the first level in the log levels list (debug, info, etc.)
-
     return winston.createLogger({
-        level,
+        level: logLevels[0], // Use the first level in the log levels list (debug, info, etc.)
         format: winston.format.combine(
             winston.format.timestamp(),   // Add a timestamp to each log entry
             winston.format.json()         // Format log entries as JSON

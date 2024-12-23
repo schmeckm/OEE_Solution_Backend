@@ -55,7 +55,7 @@ class OEECalculator {
     setOEEData(OEEData, machineId) {
         const processOrder = OEEData.processOrder;
 
-        if (!processOrder || !processOrder.start_date || !processOrder.end_date) {
+        if (!processOrder?.start_date || !processOrder?.end_date) {
             throw new Error("Required time fields (start_date/end_date) are missing in the data");
         }
 

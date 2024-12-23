@@ -18,40 +18,65 @@ let metricBuffers = new Map();
 let logCallCount = 0;
 
 function logTabularData(metrics) {
-    const { lineId = UNKNOWN_VALUES.LINE, oee = 0, availability = 0, performance = 0, quality = 0, plannedproductionquantity = 0, ActualProductionQuantity = 0, ActualProductionYield = 0, plannedDurationMinutes = 0, plannedTakt = 0, actualTakt = 0, setuptime = 0, teardowntime = 0, classification = "N/A" } = metrics;
+    const {
+        lineId = UNKNOWN_VALUES.LINE,
+        oee = 0,
+        availability = 0,
+        performance = 0,
+        quality = 0,
+        plannedproductionquantity = 0,
+        ActualProductionQuantity = 0,
+        ActualProductionYield = 0,
+        plannedDurationMinutes = 0,
+        plannedTakt = 0,
+        actualTakt = 0,
+        setuptime = 0,
+        teardowntime = 0,
+        classification = "N/A"
+    } = metrics;
+
     logCallCount++;
-    console.log(`Call number: ${logCallCount}`);
-    console.log(`\n--- OEE Metrics for Machine: ${lineId} ---`);
-    console.log(`
+    oeeLogger.info(`Call number: ${logCallCount}`);
+    oeeLogger.info(`\n--- OEE Metrics for Machine: ${lineId} ---`);
+
+    // Sicherstellen, dass die Variablen nicht null oder undefined sind
+    const safeLineId = lineId || "Unknown";
+    const safeClassification = classification || "N/A";
+
+    // Sicherstellen, dass numerische Werte nicht null oder undefined sind
+    const safeAvailability = availability !== null && availability !== undefined ? availability : 0;
+    const safePerformance = performance !== null && performance !== undefined ? performance : 0;
+    const safeQuality = quality !== null && quality !== undefined ? quality : 0;
+    const safeOee = oee !== null && oee !== undefined ? oee : 0;
+    const safePlannedTakt = plannedTakt !== null && plannedTakt !== undefined ? plannedTakt : 0;
+    const safeActualTakt = actualTakt !== null && actualTakt !== undefined ? actualTakt : 0;
+
+    oeeLogger.info(`
   +-----------------------------------------------+-------------------+
   | Metric                                        | Value             |
   +-----------------------------------------------+-------------------+
-  | Machine                                       | ${lineId.padEnd(2)}          |
-  | Availability (%)                              | ${availability.toFixed(2).padStart(6)}%           |
-  | Performance (%)                               | ${performance.toFixed(2).padStart(6)}%           |
-  | Quality (%)                                   | ${quality.toFixed(2).padStart(6)}%           |
-  | OEE (%)                                       | ${oee.toFixed(2).padStart(6)}%           |
-  | Classification                                | ${classification.padEnd(2)}     |
+  | Machine                                       | ${safeLineId.padEnd(2)}          |
+  | Availability (%)                              | ${safeAvailability.toFixed(2).padStart(6)}%           |
+  | Performance (%)                               | ${safePerformance.toFixed(2).padStart(6)}%           |
+  | Quality (%)                                   | ${safeQuality.toFixed(2).padStart(6)}%           |
+  | OEE (%)                                       | ${safeOee.toFixed(2).padStart(6)}%           |
+  | Classification                                | ${safeClassification.padEnd(2)}     |
   | Planned Production Quantity                   | ${plannedproductionquantity.toString().padStart(6)}            |
   | Actual Production Quantity                    | ${ActualProductionQuantity.toString().padStart(6)}            |
   | Actual Yield Quantity                         | ${ActualProductionYield.toString().padStart(6)}            |
   | Production Time (Min)                         | ${plannedDurationMinutes.toString().padStart(6)}            |
   | Setup Time (Min)                              | ${setuptime.toString().padStart(6)}            |
   | Teardown Time (Min)                           | ${teardowntime.toString().padStart(6)}            |
-  | Planned Takt (Min/unit)                       | ${plannedTakt.toFixed(2).padStart(6)}            |
-  | Actual Takt (Min/unit)                        | ${actualTakt.toFixed(2).padStart(6)}            |
+  | Planned Takt (Min/unit)                       | ${safePlannedTakt.toFixed(2).padStart(6)}            |
+  | Actual Takt (Min/unit)                        | ${safeActualTakt.toFixed(2).padStart(6)}            |
   +-----------------------------------------------+-------------------+
   `);
 }
-
 async function getPlantAndArea(machineId) {
     try {
         const url = `${process.env.OEE_API_URL}/workcenters/${machineId}`;
-        oeeLogger.debug(`Requesting URL: ${url}`);
         
         const response = await axios.get(url);
-        // oeeLogger.debug(`Response status: ${response.status}`);
-        // oeeLogger.debug(`Response data: ${JSON.stringify(response.data)}`);
         
         const machine = response.data;
         if (!machine) {
@@ -97,7 +122,6 @@ async function processMetrics(machineId, buffer) {
         if (!oeeCalculators.has(machineId)) {
             oeeLogger.debug(`Initializing OEE calculator for machineId ${machineId}`);
             const initResult = await calculator.init(machineId);
-            oeeLogger.debug(`InitResult for machineId ${machineId}: ${initResult}`);
             if (initResult) {
                 oeeCalculators.set(machineId, calculator);
                 oeeLogger.debug(`OEE calculator initialized and set for machineId ${machineId}`);
@@ -113,7 +137,6 @@ async function processMetrics(machineId, buffer) {
         calculator.oeeData[machineId] = { ...calculator.oeeData[machineId], plant, area, lineId, ...buffer };
         
         const processOrderData = await loadProcessOrderDataByMachine(machineId);
-        // oeeLogger.debug(`6. Process order data: ${JSON.stringify(processOrderData)}`);
         
         if (!processOrderData || processOrderData.length === 0) throw new Error(`No active process order found for machine ${machineId}`);
         const processOrder = processOrderData[0];
@@ -128,10 +151,8 @@ async function processMetrics(machineId, buffer) {
         validateInputData(totalTimes, machineId);
         const ActualProductionQuantity = buffer?.ActualProductionQuantity || 0;
         const ActualProductionYield = buffer?.ActualProductionYield || 0;
-        oeeLogger.debug(`Calculating metrics for machineId ${machineId} with values:`, { UnplannedDowntime: totalTimes.UnplannedDowntime, plannedDowntime: totalTimes.plannedDowntime + totalTimes.breakTime + totalTimes.microstops, ActualProductionQuantity, ActualProductionYield, processOrder });
-        await calculator.calculateMetrics(machineId, totalTimes.UnplannedDowntime, totalTimes.plannedDowntime + totalTimes.breakTime + totalTimes.microstops, ActualProductionQuantity, ActualProductionYield, processOrder);
+         await calculator.calculateMetrics(machineId, totalTimes.UnplannedDowntime, totalTimes.plannedDowntime + totalTimes.breakTime + totalTimes.microstops, ActualProductionQuantity, ActualProductionYield, processOrder);
         const metrics = calculator.getMetrics(machineId);
-        oeeLogger.debug(`Metrics for machineId ${machineId}:`, metrics);
         if (!metrics) throw new Error(`Metrics could not be calculated for machineId: ${machineId}.`);
         logTabularData(metrics);
         if (processOrder.ProcessOrderStatus === 'COMPLETED' || processOrder.ActualProcessOrderEnd) {
