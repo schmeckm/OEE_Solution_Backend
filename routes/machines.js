@@ -1,5 +1,34 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
+/**
+ * @module routes/machines
+ * @requires ../services/workCenterService
+ */
+
+/**
+ * @function loadWorkCenters
+ * @description Loads all work centers.
+ */
+
+/**
+ * @function updateWorkCenter
+ * @description Updates a specific work center.
+ */
+
+/**
+ * @function loadWorkCenterById
+ * @description Loads a work center by its ID.
+ */
+
+/**
+ * @function createWorkCenter
+ * @description Creates a new work center.
+ */
+
+/**
+ * @function deleteWorkCenter
+ * @description Deletes a specific work center.
+ */
 const { loadWorkCenters, updateWorkCenter, loadWorkCenterById, createWorkCenter, deleteWorkCenter } = require('../services/workCenterService'); 
 const router = express.Router();
 const { dateSettings } = require("../config/config");

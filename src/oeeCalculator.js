@@ -1,23 +1,17 @@
-const axios = require("axios");
-const { oeeLogger, errorLogger } = require("../utils/logger");
 const { fetchOEEDataFromAPI } = require("./dataLoader");
 const config = require("../config/config.json");
-const dotenv = require("dotenv");
-const moment = require("moment");
+const {
+    axios,
+    dotenv,
+    oeeLogger,
+    errorLogger,
+    moment,
+    OEE_API_URL,
+    DATE_FORMAT,
+    apiClient
+} = require("./header");
 
-dotenv.config();
-
-// Constants
-const OEE_API_URL = process.env.OEE_API_URL || config.oeeApiUrl;
-const DATE_FORMAT = process.env.DATE_FORMAT;
-
-// Creating an axios instance with base URL and default headers
-const apiClient = axios.create({
-    baseURL: OEE_API_URL,
-    headers: {
-        'x-api-key': process.env.API_KEY, // API key from environment variables
-    },
-});
+const CALCULATION_MODE = config.calculationMode || "standard"; 
 
 // Classification levels for OEE metrics
 const CLASSIFICATION_LEVELS = {
@@ -28,12 +22,23 @@ const CLASSIFICATION_LEVELS = {
 };
 
 // OEE Calculator Class
+/**
+ * Class representing an OEE (Overall Equipment Effectiveness) Calculator.
+ */
 class OEECalculator {
+    /**
+     * Create an OEECalculator.
+     */
     constructor() {
         this.oeeData = {};
     }
 
-    // Initialize the OEE Calculator with machine-specific data
+    /**
+     * Initialize the OEE Calculator with machine-specific data.
+     * @param {string} machineId - The ID of the machine.
+     * @returns {Promise<boolean>} - Returns true if initialization is successful, otherwise false.
+     * @throws {Error} - Throws an error if initialization fails.
+     */
     async init(machineId) {
         try {
             // Fetch OEE data from API
@@ -51,7 +56,12 @@ class OEECalculator {
         }
     }
 
-    // Set the OEE Data for a specific machine
+    /**
+     * Set the OEE Data for a specific machine.
+     * @param {Object} OEEData - The OEE data object.
+     * @param {string} machineId - The ID of the machine.
+     * @throws {Error} - Throws an error if required fields are missing or invalid.
+     */
     setOEEData(OEEData, machineId) {
         const processOrder = OEEData.processOrder;
 
@@ -95,6 +105,7 @@ class OEECalculator {
         }
 
         this.oeeData[machineId] = {
+            
             // Basic Information
             order_id: processOrder.order_id,
             processordernumber: processOrder.processordernumber,
@@ -137,7 +148,16 @@ class OEECalculator {
         };
     }
 
-    // Calculate OEE metrics
+    /**
+     * Calculate OEE metrics.
+     * @param {string} machineId - The ID of the machine.
+     * @param {number} totalUnplannedDowntime - Total unplanned downtime in minutes.
+     * @param {number} totalPlannedDowntime - Total planned downtime in minutes.
+     * @param {number} ActualProductionQuantity - Actual production quantity.
+     * @param {number} ActualProductionYield - Actual production yield.
+     * @param {Object} processOrder - The process order object.
+     * @throws {Error} - Throws an error if no data is found for the machine or required fields are missing.
+     */
     async calculateMetrics(machineId, totalUnplannedDowntime, totalPlannedDowntime, ActualProductionQuantity, ActualProductionYield, processOrder) {
         try {
             if (!this.oeeData[machineId]) {
@@ -152,9 +172,6 @@ class OEECalculator {
                 plannedproductionquantity,
                 start_date,
                 end_date,
-                setuptime,
-                processingtime,
-                teardowntime,
             } = processOrder;
 
             if (!actualprocessorderstart && !start_date) {
@@ -170,7 +187,6 @@ class OEECalculator {
             let plannedTakt, actualTakt, remainingTime, expectedEndTime;
 
             if (actualEnd) {
-                const actualDurationMinutes = actualEnd.diff(actualStart, "minutes");
                 plannedTakt = plannedDurationMinutes / plannedproductionquantity;
                 actualTakt = ActualProductionQuantity > 0 ? plannedDurationMinutes / ActualProductionQuantity : null;
                 remainingTime = (plannedproductionquantity - ActualProductionQuantity) * actualTakt;
@@ -215,7 +231,12 @@ class OEECalculator {
         }
     }
 
-    // Classify OEE based on predefined levels
+    /**
+     * Classify OEE based on predefined levels.
+     * @param {string} machineId - The ID of the machine.
+     * @returns {string} - The classification of the OEE.
+     * @throws {Error} - Throws an error if OEE is not calculated for the machine.
+     */
     classifyOEE(machineId) {
         const oee = (this.oeeData[machineId] && this.oeeData[machineId].oee) || undefined;
 
@@ -230,7 +251,12 @@ class OEECalculator {
         return "Below Average";
     }
 
-    // Retrieve calculated metrics for a machine
+    /**
+     * Retrieve calculated metrics for a machine.
+     * @param {string} machineId - The ID of the machine.
+     * @returns {Object} - The calculated metrics for the machine.
+     * @throws {Error} - Throws an error if no metrics are available for the machine.
+     */
     getMetrics(machineId) {
         if (!this.oeeData[machineId]) {
             throw new Error(`No metrics available for machineId: ${machineId}`);

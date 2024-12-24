@@ -7,6 +7,13 @@ const { ratings } = require('../config/config'); // Import ratings from config
 const router = express.Router();
 
 // Zentralisiertes Fehlerhandling
+/**
+ * A higher-order function that wraps an asynchronous route handler function
+ * and catches any errors that occur, passing them to the next middleware.
+ *
+ * @param {Function} fn - The asynchronous route handler function to wrap.
+ * @returns {Function} A new function that wraps the provided function and catches any errors.
+ */
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 

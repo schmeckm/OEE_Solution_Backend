@@ -1,5 +1,50 @@
 const express = require('express');
 const router = express.Router(); // Der Router wird hier korrekt initialisiert
+/**
+ * Module dependencies.
+ * @module routes/users
+ * @requires ../services/userService
+ */
+
+/**
+ * Load all users.
+ * @function
+ * @name loadUsers
+ * @memberof module:routes/users
+ */
+
+/**
+ * Load a user by ID.
+ * @function
+ * @name loadUserById
+ * @memberof module:routes/users
+ * @param {string} id - The ID of the user to load.
+ */
+
+/**
+ * Create a new user.
+ * @function
+ * @name createUser
+ * @memberof module:routes/users
+ * @param {Object} user - The user data to create.
+ */
+
+/**
+ * Update an existing user.
+ * @function
+ * @name updateUser
+ * @memberof module:routes/users
+ * @param {string} id - The ID of the user to update.
+ * @param {Object} user - The updated user data.
+ */
+
+/**
+ * Delete a user.
+ * @function
+ * @name deleteUser
+ * @memberof module:routes/users
+ * @param {string} id - The ID of the user to delete.
+ */
 const { 
   loadUsers,
   loadUserById,

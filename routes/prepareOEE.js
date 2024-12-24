@@ -10,6 +10,17 @@ const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 // Input validation and sanitization function
+/**
+ * Validates and sanitizes a machine ID.
+ *
+ * This function uses Joi to validate that the provided machine ID is a valid UUID.
+ * If the validation fails, an error is thrown. If the validation succeeds, the
+ * machine ID is sanitized using sanitizeHtml.
+ *
+ * @param {string} machineId - The machine ID to validate and sanitize.
+ * @returns {string} - The sanitized machine ID.
+ * @throws {Error} - Throws an error if the machine ID is invalid.
+ */
 const validateAndSanitizeMachineId = (machineId) => {
   // Joi schema for machineId (assuming it's a UUID)
   const schema = Joi.string().uuid().required();

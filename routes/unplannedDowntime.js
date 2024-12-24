@@ -133,6 +133,15 @@ router.post("/", asyncHandler(async (req, res) => {
 router.put("/:id", asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  /**
+   * An object containing updated data for unplanned downtime.
+   * 
+   * @typedef {Object} UpdatedData
+   * @property {string} Start - The formatted start date of the downtime.
+   * @property {string} End - The formatted end date of the downtime.
+   * @property {number} durationInMinutes - The calculated duration of the downtime in minutes.
+   * @property {Object} req.body - The original request body containing additional properties.
+   */
   const updatedData = {
     ...req.body,
     Start: formatDate(req.body.Start),

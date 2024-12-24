@@ -1,5 +1,13 @@
 const express = require('express');
 const router = express.Router(); // Initialisiere den Router
+/**
+ * @file microstops.js
+ * @description This file contains the route handlers for microstops.
+ * It imports the necessary services to load, create, update, and delete microstops.
+ * 
+ * @module routes/microstops
+ */
+
 const { 
   loadMicrostops, 
   loadMicrostopById, 

@@ -8,6 +8,6 @@
       "outDir": "./dist",
       "strict": true
   },
-  "include": ["src/**/*.js", "routes/**/*.js", "utils/classification.js", "utils/cacheHelper.js"],
+  "include": ["src/**/*.js", "routes/**/*.js", "utils/classification.js", "utils/cacheHelper.js", "test/messageHandler.test.js"],
   "exclude": ["node_modules"]
 }

@@ -135,6 +135,18 @@ router.post("/", asyncHandler(async (req, res) => {
 router.put("/:id", asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  /**
+   * Updates the data object with formatted start and end dates, and calculates the duration in minutes.
+   *
+   * @param {Object} req - The request object containing the body data.
+   * @param {Object} req.body - The body of the request.
+   * @param {string} req.body.Start - The start date/time in string format.
+   * @param {string} req.body.End - The end date/time in string format.
+   * @returns {Object} updatedData - The updated data object with formatted dates and calculated duration.
+   * @property {string} Start - The formatted start date/time.
+   * @property {string} End - The formatted end date/time.
+   * @property {number} durationInMinutes - The calculated duration between start and end in minutes.
+   */
   const updatedData = {
     ...req.body,
     Start: formatDate(req.body.Start),

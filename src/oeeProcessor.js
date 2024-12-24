@@ -1,16 +1,23 @@
-const { oeeLogger, errorLogger } = require("../utils/logger");
+const {
+    oeeLogger,
+    errorLogger,
+    axios,
+    moment,
+    DATE_FORMAT,
+    TIMEZONE,
+    apiClient
+} = require("./header");
+
 const { writeOEEToInfluxDB } = require("../services/oeeMetricsService");
 const { loadMachineData, loadDataAndPrepareOEE, loadProcessOrderDataByMachine } = require("./dataLoader");
 const { influxdb } = require("../config/config");
 const OEECalculator = require("./oeeCalculator");
 const { sendWebSocketMessage } = require("../websocket/webSocketUtils");
-const axios = require('axios');
-const moment = require("moment-timezone");
 require('dotenv').config(); // Laden der Umgebungsvariablen
 
 // Zugriff auf die Umgebungsvariablen
-const dateFormat = process.env.DATE_FORMAT;
-const timezone = process.env.TIMEZONE;
+const dateFormat = DATE_FORMAT;
+const timezone = TIMEZONE;
 
 const UNKNOWN_VALUES = { PLANT: 'UnknownPlant', AREA: 'UnknownArea', LINE: 'UnknownLine' };
 const oeeCalculators = new Map();

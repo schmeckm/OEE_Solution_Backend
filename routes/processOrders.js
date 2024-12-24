@@ -154,6 +154,14 @@ router.get(
  * @param {string} [machineId] - Die Maschinen-ID, nach der optional gefiltert wird.
  * @returns {Array} - Die gefilterte Liste der Prozessaufträge.
  */
+/**
+ * Filters process orders based on status and optionally by machine ID.
+ *
+ * @param {Array} orders - The array of process orders to filter.
+ * @param {boolean} mark - If true, filters orders with status 'REL'. If false, filters orders with status other than 'REL'.
+ * @param {string} [machineId] - Optional machine ID to further filter the orders.
+ * @returns {Array} - The filtered array of process orders.
+ */
 function filterProcessOrders(orders, mark, machineId) {
   // Filtert nach Status 'REL' oder anderen Status, basierend auf dem Wert von 'mark'
   const filteredByStatus = orders.filter((order) => {

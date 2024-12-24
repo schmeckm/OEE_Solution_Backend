@@ -1,21 +1,19 @@
-const axios = require("axios");
-const moment = require("moment-timezone");
+const {
+    axios,
+    moment,
+    dotenv,
+    oeeLogger,
+    errorLogger,
+    OEE_API_URL,
+    TIMEZONE,
+    apiClient
+} = require("./header");
+
 const { v4: uuidv4 } = require("uuid");
-const { oeeLogger, errorLogger } = require("../utils/logger");
 const { saveMachineStoppagesData } = require("./dataLoader");
 const { sendWebSocketMessage } = require("../websocket/webSocketUtils");
 
-const TIMEZONE = process.env.TIMEZONE || "UTC";
-const OEE_API_URL = process.env.OEE_API_URL;
 let currentHoldStatus = {};
-
-// Erstellen einer benutzerdefinierten axios-Instanz mit dem API-Key-Header
-const apiClient = axios.create({
-    baseURL: OEE_API_URL,
-    headers: {
-        'x-api-key': process.env.API_KEY,
-    },
-});
 
 /**
  * Handles the "Hold" command, which places the machine on hold.

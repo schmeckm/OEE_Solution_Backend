@@ -1,5 +1,50 @@
 const express = require('express');
 const router = express.Router(); // Der Router wird hier korrekt initialisiert
+/**
+ * Module dependencies.
+ * @module routes/tact
+ * @requires ../services/tactService
+ */
+
+/**
+ * Load all tacts.
+ * @function
+ * @name loadTacts
+ * @memberof module:routes/tact
+ */
+
+/**
+ * Load a specific tact by ID.
+ * @function
+ * @name loadTactById
+ * @memberof module:routes/tact
+ * @param {string} id - The ID of the tact to load.
+ */
+
+/**
+ * Create a new tact.
+ * @function
+ * @name createTact
+ * @memberof module:routes/tact
+ * @param {Object} tactData - The data for the new tact.
+ */
+
+/**
+ * Update an existing tact.
+ * @function
+ * @name updateTact
+ * @memberof module:routes/tact
+ * @param {string} id - The ID of the tact to update.
+ * @param {Object} tactData - The updated data for the tact.
+ */
+
+/**
+ * Delete a specific tact.
+ * @function
+ * @name deleteTact
+ * @memberof module:routes/tact
+ * @param {string} id - The ID of the tact to delete.
+ */
 const { 
   loadTacts, 
   loadTactById, 

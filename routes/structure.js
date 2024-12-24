@@ -12,6 +12,12 @@ const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 // Funktion zur rekursiven Säuberung von Objekten
+/**
+ * Recursively sanitizes an object by removing any potentially dangerous HTML.
+ * 
+ * @param {Object|Array|string} obj - The object, array, or string to sanitize.
+ * @returns {Object|Array|string} - The sanitized object, array, or string.
+ */
 const sanitizeObject = (obj) => {
   if (typeof obj === 'string') {
     return sanitizeHtml(obj);

@@ -1,27 +1,20 @@
-const axios = require("axios");
-const moment = require("moment-timezone");
-const dotenv = require("dotenv");
-const { oeeLogger, errorLogger, defaultLogger } = require("../utils/logger");
+const {
+    axios,
+    moment,
+    dotenv,
+    oeeLogger,
+    errorLogger,
+    defaultLogger,
+    OEE_API_URL,
+    DATE_FORMAT,
+    TIMEZONE,
+    apiClient
+} = require("./header");
 
 dotenv.config();
 
 // Zugriff auf die Umgebungsvariablen
-const dateFormat = process.env.DATE_FORMAT;
-const timezone = process.env.TIMEZONE;
-
-console.log(`TIMEZONE: ${process.env.TIMEZONE}`);
-console.log(`DATE_FORMAT: ${process.env.DATE_FORMAT}`);
-
-// Erstellen der benutzerdefinierten axios-Instanz mit API-Key
-const OEE_API_URL = process.env.OEE_API_URL;
-const API_KEY = process.env.API_KEY;
-
-const apiClient = axios.create({
-    baseURL: OEE_API_URL,
-    headers: {
-        'x-api-key': API_KEY
-    }
-});
+console.log(`TIMEZONE: ${TIMEZONE}`);
 
 // Caches for various data
 const cache = {
@@ -65,8 +58,8 @@ const loadUnplannedDowntimeData = () => fetchDataWithCache('unplannedDowntime', 
     
     return data.map((downtime) => ({
         ...downtime,
-        start_date: moment.utc(downtime.start_date).format(dateFormat), 
-        end_date: moment.utc(downtime.end_date).format(dateFormat), 
+        start_date: moment.utc(downtime.start_date).format(DATE_FORMAT), 
+        end_date: moment.utc(downtime.end_date).format(DATE_FORMAT), 
     }));
 });
 
@@ -76,8 +69,8 @@ const loadPlannedDowntimeData = () => fetchDataWithCache('plannedDowntime', '/pl
 
     return data.map((downtime) => ({
         ...downtime,
-        start_date: moment.utc(downtime.start_date).format(dateFormat), 
-        end_date: moment.utc(downtime.end_date).format(dateFormat), 
+        start_date: moment.utc(downtime.start_date).format(DATE_FORMAT), 
+        end_date: moment.utc(downtime.end_date).format(DATE_FORMAT), 
     }));
 });
 
@@ -89,8 +82,8 @@ const loadProcessOrderData = () => fetchDataWithCache('processOrderData', '/proc
     oeeLogger.debug(`Loaded ${data.length} process orders`);
     return data.map((order) => ({
         ...order,
-        Start: moment.utc(order.start_date).format(dateFormat),
-        End: moment.utc(order.end_date).format(dateFormat),
+        Start: moment.utc(order.start_date).format(DATE_FORMAT),
+        End: moment.utc(order.end_date).format(DATE_FORMAT),
     }));
 });
 
@@ -100,8 +93,8 @@ const loadProcessOrderDataByMachine = async (machineId) => {
         return await fetchDataWithCache(`processOrderByMachine.${machineId}`, `/processorders/rel`, (data) =>
             data.map((order) => ({
                 ...order,
-                Start: moment.utc(order.Start).format(dateFormat),
-                End: moment.utc(order.End).format(dateFormat),
+                Start: moment.utc(order.Start).format(DATE_FORMAT),
+                End: moment.utc(order.End).format(DATE_FORMAT),
             })), { params: { machineId, mark: true } });
     } catch (error) {
         errorLogger.error(`Failed to load process orders for machine ID ${machineId}: ${error.message}`);
@@ -203,8 +196,8 @@ const loadMicrostops = () => fetchDataWithCache('microstops', '/microstops', (da
     const flattenedMicrostops = data.map((microstop) => ({
         Microstop_ID: microstop.dataValues.Microstop_ID,
         Order_ID: microstop.dataValues.Order_ID,
-        start_date: moment.utc(microstop.dataValues.start_date).format(dateFormat),
-        end_date: moment.utc(microstop.dataValues.end_date).format(dateFormat),
+        start_date: moment.utc(microstop.dataValues.start_date).format(DATE_FORMAT),
+        end_date: moment.utc(microstop.dataValues.end_date).format(DATE_FORMAT),
         Reason: microstop.dataValues.Reason,
         Differenz: microstop.dataValues.Differenz,
         workcenter_id: microstop.dataValues.workcenter_id

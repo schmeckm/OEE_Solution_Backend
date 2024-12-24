@@ -60,6 +60,16 @@ const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 // Eingabevalidierung und -säuberung
+/**
+ * Validates and sanitizes the query parameters.
+ *
+ * @param {Object} query - The query parameters to validate and sanitize.
+ * @param {string} [query.machine_id] - The ID of the machine (optional).
+ * @param {string} [query.start] - The start date in ISO format (optional).
+ * @param {string} [query.end] - The end date in ISO format (optional).
+ * @returns {Object} The validated and sanitized query parameters.
+ * @throws {Error} If the query parameters are invalid.
+ */
 const validateAndSanitizeQuery = (query) => {
   const schema = Joi.object({
     machine_id: Joi.string().optional(),

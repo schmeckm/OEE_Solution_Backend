@@ -121,21 +121,6 @@ try {
     process.exit(1);
 }
 
-// === Rate Limiting to Prevent DoS Attacks ===
-// try {
-//     const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 Minuten
-//     const limiter = rateLimit({
-//         windowMs: RATE_LIMIT_WINDOW_MS,
-//         max: 100,
-//         message: 'Zu viele Anfragen von dieser IP, bitte versuchen Sie es später erneut.'
-//     });
-//     app.use(limiter);
-//     console.log(`📈 Ratenbegrenzung aktiviert: Maximal ${limiter.max} Anfragen pro ${RATE_LIMIT_WINDOW_MS / 60000} Minuten.`);
-// } catch (error) {
-//     console.error('❌ Fehler beim Einrichten der Ratenbegrenzung:', error);
-//     process.exit(1);
-// }
-
 // === Initialize InfluxDB (if used) ===
 try {
     const { initializeInfluxDB } = require("./services/influxDBService");

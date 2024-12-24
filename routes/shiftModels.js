@@ -18,6 +18,16 @@ const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 // Input validation and sanitization
+/**
+ * Validates and sanitizes the shift model data.
+ *
+ * @param {Object} data - The shift model data to validate and sanitize.
+ * @param {string} data.name - The name of the shift model. This field is required.
+ * @param {string} [data.description] - The description of the shift model. This field is optional and can be an empty string.
+ * @param {string} data.workcenter_id - The ID of the workcenter. This field is required.
+ * @returns {Object} The validated and sanitized shift model data.
+ * @throws {Error} If validation fails, an error is thrown with the validation message.
+ */
 const validateAndSanitizeShiftModel = (data) => {
   const schema = Joi.object({
     name: Joi.string().required(),

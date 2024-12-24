@@ -52,5 +52,6 @@
         { "id": "7b9d03f2-b3bc-4fa4-b6e4-cbb89f1b801b", "description": "Machine Fault", "color": "blue" },
         { "id": "9c50f72c-d4e6-47b0-a1e3-8c77b94f99cb", "description": "Unknown", "color": "gray" },
         { "id": "6e7095ba-ec79-44ef-9142-f2f5d1e990be", "description": "IT-OT", "color": "green" }
-    ]
+    ],
+    "calculationMode": "standard"
 }
