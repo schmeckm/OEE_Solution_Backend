@@ -40,7 +40,7 @@ const fetchDataWithCache = async (cacheKey, endpoint, transformFn = (data) => da
     }
     try {
         const response = await apiClient.get(endpoint, options);
-        if (!response || !response.data) {
+        if (!response?.data) {
             throw new Error(`No data received from API for endpoint: ${endpoint}`);
         }
         const data = transformFn(response.data);
@@ -191,16 +191,17 @@ const fetchOEEDataFromAPI = (machineId) => fetchDataWithCache(`OEEData.${machine
 });
 
 // Load microstop data from the API, caching the result
+// Load microstop data from the API, caching the result
 const loadMicrostops = () => fetchDataWithCache('microstops', '/microstops', (data) => {
     // Flache Struktur der Microstops-Daten erstellen
     const flattenedMicrostops = data.map((microstop) => ({
-        Microstop_ID: microstop.dataValues.Microstop_ID,
-        Order_ID: microstop.dataValues.Order_ID,
-        start_date: moment.utc(microstop.dataValues.start_date).format(DATE_FORMAT),
-        end_date: moment.utc(microstop.dataValues.end_date).format(DATE_FORMAT),
-        Reason: microstop.dataValues.Reason,
-        Differenz: microstop.dataValues.Differenz,
-        workcenter_id: microstop.dataValues.workcenter_id
+        Microstop_ID: microstop.Microstop_ID,
+        Order_ID: microstop.Order_ID,
+        start_date: moment.utc(microstop.start_date).format(DATE_FORMAT),
+        end_date: moment.utc(microstop.end_date).format(DATE_FORMAT),
+        Reason: microstop.Reason,
+        Differenz: microstop.Differenz,
+        workcenter_id: microstop.workcenter_id
     }));
 
     oeeLogger.debug(`Flattened Microstops Data: ${JSON.stringify(flattenedMicrostops)}`);

@@ -47,7 +47,7 @@ const validateAndSanitizeQuery = (query) => {
  * /microstop-aggregation/process-order:
  *   get:
  *     summary: Get aggregated microstops by process order
- *     description: Retrieve microstops aggregated by reason code for a given process order number, or filter by start and end date.
+ *     description: Retrieve microstops aggregated by reason code for a given process order number.
  *     tags: [Microstop Aggregation]
  *     parameters:
  *       - in: query
@@ -55,18 +55,6 @@ const validateAndSanitizeQuery = (query) => {
  *         schema:
  *           type: string
  *         description: The process order number to filter by.
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date-time
- *         description: Start date to filter microstops (ISO 8601 format).
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- *         description: End date to filter microstops (ISO 8601 format).
  *     responses:
  *       200:
  *         description: A list of aggregated microstops.
@@ -109,17 +97,11 @@ router.get(
   asyncHandler(async (req, res) => {
     try {
       // Validate and sanitize query parameters
-      const { processOrderNumber, startDate, endDate } = validateAndSanitizeQuery(req.query);
-
-      // Convert dates to moment objects
-      const start = startDate ? moment.tz(startDate, moment.tz.guess()).toDate() : null;
-      const end = endDate ? moment.tz(endDate, moment.tz.guess()).toDate() : null;
+      const { processOrderNumber} = validateAndSanitizeQuery(req.query);
 
       // Call the service function
       const aggregatedData = await aggregateMicrostopsByProcessOrder(
-        processOrderNumber,
-        start,
-        end
+        processOrderNumber
       );
 
       if (!aggregatedData || Object.keys(aggregatedData).length === 0) {

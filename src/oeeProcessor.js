@@ -9,10 +9,11 @@ const {
 } = require("./header");
 
 const { writeOEEToInfluxDB } = require("../services/oeeMetricsService");
-const { loadMachineData, loadDataAndPrepareOEE, loadProcessOrderDataByMachine } = require("./dataLoader");
-const { influxdb } = require("../config/config");
-const OEECalculator = require("./oeeCalculator");
 const { sendWebSocketMessage } = require("../websocket/webSocketUtils");
+const { influxdb } = require("../config/config");
+const { loadMachineData, loadDataAndPrepareOEE, loadProcessOrderDataByMachine } = require("./dataLoader");
+const OEECalculator = require("./oeeCalculator");
+
 require('dotenv').config(); // Laden der Umgebungsvariablen
 
 // Zugriff auf die Umgebungsvariablen
@@ -158,7 +159,7 @@ async function processMetrics(machineId, buffer) {
         validateInputData(totalTimes, machineId);
         const ActualProductionQuantity = buffer?.ActualProductionQuantity || 0;
         const ActualProductionYield = buffer?.ActualProductionYield || 0;
-         await calculator.calculateMetrics(machineId, totalTimes.UnplannedDowntime, totalTimes.plannedDowntime + totalTimes.breakTime + totalTimes.microstops, ActualProductionQuantity, ActualProductionYield, processOrder);
+        await calculator.calculateMetrics(machineId, totalTimes.UnplannedDowntime, totalTimes.plannedDowntime + totalTimes.breakTime + totalTimes.microstops, ActualProductionQuantity, ActualProductionYield, processOrder);
         const metrics = calculator.getMetrics(machineId);
         if (!metrics) throw new Error(`Metrics could not be calculated for machineId: ${machineId}.`);
         logTabularData(metrics);

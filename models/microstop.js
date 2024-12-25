@@ -2,13 +2,13 @@ const { Sequelize, DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
     const Microstop = sequelize.define('Microstop', {
-        Microstop_ID: {
+        microstop_ID: {
             type: DataTypes.UUID,
             primaryKey: true,
             defaultValue: DataTypes.UUIDV4,
             field: 'microstop_id'  // Der tatsächliche Name der Spalte in der Datenbank
         },
-        Order_ID: {
+        order_id: {
             type: DataTypes.INTEGER,
             allowNull: false,
             field: 'order_id'  // Der tatsächliche Name der Spalte in der Datenbank
@@ -23,12 +23,12 @@ module.exports = (sequelize) => {
             allowNull: false,
             field: 'end_date'  // Der tatsächliche Name der Spalte in der Datenbank
         },
-        Reason: {
+        reason: {
             type: DataTypes.STRING,
             allowNull: false,
             field: 'reason'  // Der tatsächliche Name der Spalte in der Datenbank
         },
-        Differenz: {
+        differenz: {
             type: DataTypes.INTEGER,
             allowNull: false,
             field: 'differenz'  // Der tatsächliche Name der Spalte in der Datenbank

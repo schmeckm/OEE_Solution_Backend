@@ -228,7 +228,8 @@ router.get(
         return res.status(404).json({ message: `Process order with ID ${id} not found` });
       }
 
-      res.json(processOrder);  // Gebe die komplette Prozessauftragsinstanz zurück
+      // Gebe nur die relevanten Werte zurück
+      res.json(processOrder.dataValues);
     } catch (error) {
       console.error(`Error fetching process order with ID ${id}: ${error.message}`);
       res.status(500).json({ message: `Error fetching process order with ID ${id}: ${error.message}` });
@@ -252,6 +253,17 @@ router.get(
  *     responses:
  *       201:
  *         description: Process order added successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 order_id:
+ *                   type: string
+ *       500:
+ *         description: Error creating process order
  *         content:
  *           application/json:
  *             schema:
@@ -285,6 +297,97 @@ router.post(
   })
 );
 
+/**
+ * @swagger
+ * /processorders/{id}:
+ *   put:
+ *     summary: Update an existing process order
+ *     tags: [Process Orders]
+ *     description: Update an existing process order by ID.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: The UUID of the process order to update
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ProcessOrder'
+ *     responses:
+ *       200:
+ *         description: Process order updated successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 order_id:
+ *                   type: string
+ *       500:
+ *         description: Failed to update process order
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ */
+router.put(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const updatedData = req.body;
+
+    try {
+      const updatedOrder = await updateProcessOrder(id, updatedData);
+
+      res.status(200).json({
+        message: "Process order updated successfully",
+        order_id: updatedOrder.order_id,
+      });
+    } catch (error) {
+      errorLogger.error(`Failed to update process order with ID ${id}: ${error.message}`);
+      res.status(500).json({ message: "Failed to update process order" });
+    }
+  })
+);
+
+/**
+ * @swagger
+ * /processorders/{id}:
+ *   delete:
+ *     summary: Delete a process order
+ *     tags: [Process Orders]
+ *     description: Delete a process order by ID.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: The UUID of the process order to delete
+ *         schema:
+ *           type: string
+ *     responses:
+ *       204:
+ *         description: Process order deleted successfully.
+ *       404:
+ *         description: Process order not found.
+ *       500:
+ *         description: Failed to delete process order
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ */
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {

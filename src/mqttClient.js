@@ -187,12 +187,12 @@ async function handleIncomingMessage(topic, message) {
             oeeLogger.error(`Machine ${machineName} not found. Skipping message processing.`);
             return;
         }
+        oeeLogger.info(`Machine ID Incoming Message for ${machineName} is ${machineId}`);
         const hasRunningOrder = await checkForRunningOrder(machineId);
         if (!hasRunningOrder) {
             oeeLogger.warn(`No active process order for machine ID ${machineId}. Skipping message processing.`);
             return;
         }
-
         // Nachricht dekodieren und verarbeiten
         const decodedMessage = decodeMessagePayload(message);
         processMessageByType(dataType, decodedMessage, machineId, metric);

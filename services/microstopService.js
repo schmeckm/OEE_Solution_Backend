@@ -80,7 +80,8 @@ const loadMicrostops = async () => {
     if (!data || data.length === 0) {
       return [];
     }
-    return data.map(formatDates); // Format the microstop records before returning
+    // Extract and format the dataValues of each record before returning
+    return data.map(record => formatDates(record.dataValues));
   } catch (error) {
     handleError('load all', error);
   }

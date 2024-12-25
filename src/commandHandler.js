@@ -6,6 +6,7 @@ const {
     errorLogger,
     OEE_API_URL,
     TIMEZONE,
+    thresholdSeconds,
     apiClient
 } = require("./header");
 
@@ -53,7 +54,7 @@ async function handleUnholdCommand(value, machineId) {
     }
 
     const holdStatus = currentHoldStatus[machineId];
-    if (!holdStatus || !holdStatus.startTimestamp) {
+    if (!holdStatus?.startTimestamp) {
         logInfo(`Unhold command received, but no previous Hold signal found for machine ${machineId}.`);
         return;
     }
@@ -63,37 +64,59 @@ async function handleUnholdCommand(value, machineId) {
     logEventToDatabase("Unhold", timestamp);
     notifyPersonnel("Machine has been unhold and resumed operations.");
 
+    let processOrder = null;
+
+    try {
+        const response = await apiClient.get(`processorders/rel`, {
+            params: { machineId, mark: true },
+        });
+
+        processOrder = response.data[0];
+        if (processOrder) {
+            currentHoldStatus[machineId].processOrderID = processOrder.order_id;
+            logInfo(`Process Order ID ${processOrder.order_id} associated with hold for machine ${machineId}`);
+        } else {
+            logInfo(`No active process order found for machineId: ${machineId}`);
+        }
+    } catch (error) {
+        logError(`Failed to retrieve process order for machineId ${machineId}`, error);
+    }
+
     const holdTimestamp = moment(holdStatus.startTimestamp);
     const downtimeSeconds = moment(timestamp).diff(holdTimestamp, "seconds");
 
-    const machineStoppageEntry = {
-        ID: uuidv4(),
-        ProcessOrderID: holdStatus.processOrderID || "N/A",
-        Start: holdTimestamp.toISOString(),
-        End: timestamp,
-        Reason: "TBD",
-        Differenz: downtimeSeconds,
-        machine_id: machineId,
-    };
+    if (downtimeSeconds > thresholdSeconds) {
+        const machineStoppageEntry = {
+            ID: uuidv4(),
+            Order_ID: processOrder ? processOrder.order_id : null,
+            start_date: holdTimestamp.toISOString(),
+            end_date: timestamp,
+            Reason: "TBD",
+            Differenz: downtimeSeconds,
+            workcenter_id: machineId,
+        };
 
-    logInfo(`Saving machine stoppage entry: ${JSON.stringify(machineStoppageEntry)}`);
+        logInfo(`Saving machine stoppage entry: ${JSON.stringify(machineStoppageEntry)}`);
 
-    try {
-        const Microstops = saveMachineStoppagesData(machineStoppageEntry);
-        logInfo(`Microstops updated successfully: ${JSON.stringify(Microstops)}`);
-        sendWebSocketMessage("Microstops", Microstops);
-    } catch (error) {
-        logError("Error saving Microstops data", error);
+        try {
+            const response = await apiClient.post("/microstops", machineStoppageEntry);
+            const Microstops = response.data;
+            logInfo(`Microstops updated successfully: ${JSON.stringify(Microstops)}`);
+            sendWebSocketMessage("Microstops", Microstops);
+        } catch (error) {
+            logError("Error saving Microstops data", error);
+        }
+    } else {
+        logInfo(`Downtime of ${downtimeSeconds} seconds is less than threshold of ${thresholdSeconds} seconds. No entry saved.`);
     }
 
     delete currentHoldStatus[machineId];
 }
-
 /**
  * Updates the actual start time of a process order using the provided API.
  * @param {string} machineId - The ID of the machine starting the process order.
  */
-async function handleProcessOrderStartCommand(machineId) {
+async function handleProcessOrderStartCommand(value, machineId) {
     const timestamp = moment().tz(TIMEZONE).toISOString();
     oeeLogger.info(`handleProcessOrderStart called for machineId: ${machineId} at ${timestamp}`);
 
@@ -108,9 +131,10 @@ async function handleProcessOrderStartCommand(machineId) {
         if (processOrder) {
             const processOrderId = processOrder.order_id;
             console.log(`Process Order Start for ProcessOrderID: ${processOrderId}`);
-            processOrder.ActualProcessOrderStart = timestamp;
-
-            await apiClient.put(`/processorders/${processOrderId}`, processOrder);
+            await apiClient.put(`/processorders/${processOrderId}`, {
+                ...processOrder,
+                actualprocessorderstart: timestamp
+            });
             oeeLogger.info(`Updated ActualProcessOrderStart for ProcessOrderID: ${processOrderId} to ${timestamp}`);
         } else {
             oeeLogger.warn(`No active process order found for machineId: ${machineId}`);
@@ -124,7 +148,7 @@ async function handleProcessOrderStartCommand(machineId) {
  * Updates the actual end time of a process order using the provided API.
  * @param {string} machineId - The ID of the machine ending the process order.
  */
-async function handleProcessOrderEndCommand(machineId) {
+async function handleProcessOrderEndCommand(value, machineId) {
     const timestamp = moment().tz(TIMEZONE).toISOString();
     console.log(`handleProcessOrderEnd called for machineId: ${machineId} at ${timestamp}`);
 
@@ -139,9 +163,11 @@ async function handleProcessOrderEndCommand(machineId) {
         if (processOrder) {
             const processOrderId = processOrder.order_id;
             oeeLogger.info(`Process Order End for ProcessOrderID: ${processOrderId}`);
-            processOrder.ActualProcessOrderEnd = timestamp;
 
-            await apiClient.put(`/processorders/${processOrderId}`, processOrder);
+            await apiClient.put(`/processorders/${processOrderId}`, {
+                ...processOrder,
+                actualprocessorderend: timestamp
+            });
             oeeLogger.info(`Updated ActualProcessOrderEnd for ProcessOrderID: ${processOrderId} to ${timestamp}`);
         } else {
             oeeLogger.warn(`No active process order found for machineId: ${machineId}`);

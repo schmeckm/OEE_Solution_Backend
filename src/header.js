@@ -2,6 +2,7 @@ const axios = require("axios");
 const dotenv = require("dotenv");
 const { oeeLogger, errorLogger } = require("../utils/logger");
 const moment = require("moment");
+const config = require("../config/config.json");
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ module.exports = {
     moment,
     OEE_API_URL,
     TIMEZONE,
+    thresholdSeconds: config.thresholdSeconds,
     DATE_FORMAT,
     apiClient
 };

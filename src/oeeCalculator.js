@@ -57,10 +57,29 @@ class OEECalculator {
     }
 
     /**
-     * Set the OEE Data for a specific machine.
-     * @param {Object} OEEData - The OEE data object.
-     * @param {string} machineId - The ID of the machine.
-     * @throws {Error} - Throws an error if required fields are missing or invalid.
+     * Sets the OEE (Overall Equipment Effectiveness) data for a specific machine.
+     *
+     * @param {Object} OEEData - The data object containing process order and other relevant information.
+     * @param {string} machineId - The unique identifier for the machine.
+     * @throws {Error} Throws an error if required time fields (start_date/end_date) are missing or invalid.
+     *
+     * The function calculates various metrics related to the process order, including:
+     * - Planned and actual takt times
+     * - Remaining time for production
+     * - Expected end time of the process order
+     * 
+     * The calculated metrics and other relevant information are stored in the `oeeData` object for the specified machine.
+     *
+     * The function handles three scenarios based on the presence of actual process order start and end times:
+     * 1. No actual start and end times: Uses planned start and end times to calculate metrics.
+     * 2. Actual start time but no end time: Uses actual start time and planned end time to calculate metrics.
+     * 3. Both actual start and end times: Uses actual start and end times to calculate metrics.
+     *
+     * The stored data includes:
+     * - Basic information (order ID, process order number, material details, etc.)
+     * - Time information (setup time, processing time, teardown time, runtime, planned and actual duration)
+     * - Production information (planned and confirmed production quantities and yields, scrap)
+     * - Performance metrics (planned and actual takt times, remaining time, expected end time, availability, performance, quality, OEE, classification)
      */
     setOEEData(OEEData, machineId) {
         const processOrder = OEEData.processOrder;
@@ -76,25 +95,35 @@ class OEECalculator {
             throw new Error("Invalid start_date or end_date in process order");
         }
 
-        let plannedTakt, actualTakt, remainingTime, expectedEndTime;
+        let plannedTakt, actualTakt, remainingTime, expectedEndTime, runtime;
         let actualEnd = null; // Initialize actualEnd to null
 
+        // 1. No actual start and end times: Uses planned start and end times to calculate metrics.
         if (!processOrder.actualprocessorderstart && !processOrder.actualprocessorderend) {
+            oeeLogger.info('1. No actual start and end times: Uses planned start and end times to calculate metrics.');
             const plannedDurationMinutes = plannedEnd.diff(plannedStart, "minutes");
             plannedTakt = plannedDurationMinutes / processOrder.plannedproductionquantity;
             actualTakt = plannedTakt;
             remainingTime = processOrder.plannedproductionquantity * actualTakt;
             expectedEndTime = plannedStart.add(remainingTime, "minutes");
+            runtime = plannedDurationMinutes; // Runtime is the planned duration in this case
+            oeeLogger.info('Runtime', runtime);
 
+        // 2. Actual start time but no end time: Uses actual start time and planned end time to calculate metrics.
         } else if (processOrder.actualprocessorderstart && !processOrder.actualprocessorderend) {
+            oeeLogger.info('2. Actual start time but no end time: Uses actual start time and planned end time to calculate metrics.');
             const actualStart = moment.utc(processOrder.actualprocessorderstart);
             const plannedDurationMinutes = plannedEnd.diff(actualStart, "minutes");
             plannedTakt = plannedDurationMinutes / processOrder.plannedproductionquantity;
             actualTakt = plannedTakt;
             remainingTime = (processOrder.plannedproductionquantity - processOrder.confirmedproductionquantity) * actualTakt;
             expectedEndTime = plannedEnd;
+            runtime = moment().diff(actualStart, "minutes"); // Runtime is the time from actual start to now
+            oeeLogger.info('Runtime', runtime);
 
+        // 3. Both actual start and end times: Uses actual start and end times to calculate metrics.
         } else if (processOrder.actualprocessorderstart && processOrder.actualprocessorderend) {
+            oeeLogger.info('3. Both actual start and end times: Uses actual start and end times to calculate metrics.');
             const actualStart = moment.utc(processOrder.actualprocessorderstart);
             actualEnd = moment.utc(processOrder.actualprocessorderend); // Define actualEnd here
             const actualDurationMinutes = actualEnd.diff(actualStart, "minutes");
@@ -102,10 +131,11 @@ class OEECalculator {
             actualTakt = actualDurationMinutes / processOrder.plannedproductionquantity;
             remainingTime = (processOrder.plannedproductionquantity - processOrder.confirmedproductionquantity) * actualTakt;
             expectedEndTime = actualEnd.add(remainingTime, "minutes");
+            runtime = actualDurationMinutes; // Runtime is the actual duration in this case
+            oeeLogger.info('Runtime', runtime);
         }
 
         this.oeeData[machineId] = {
-            
             // Basic Information
             order_id: processOrder.order_id,
             processordernumber: processOrder.processordernumber,
@@ -123,7 +153,8 @@ class OEECalculator {
             setuptime: processOrder.setuptime,
             processingtime: processOrder.processingtime,
             teardowntime: processOrder.teardowntime,
-            Runtime: processOrder.setuptime + processOrder.processingtime + processOrder.teardowntime,
+            plannedRuntime: processOrder.setuptime + processOrder.processingtime + processOrder.teardowntime,
+            actualRuntime: runtime,
             plannedDurationMinutes: plannedEnd.diff(plannedStart, "minutes"),
             actualDurationMinutes: actualEnd ? actualEnd.diff(actualStart, "minutes") : null,
 
@@ -164,7 +195,7 @@ class OEECalculator {
                 throw new Error(`No data found for machineId: ${machineId}`);
             }
 
-            // oeeLogger.debug(`Calculating metrics for machineId ${machineId}`);
+            oeeLogger.debug(`Calculating metrics for machineId ${machineId}`);
 
             const {
                 actualprocessorderstart,
@@ -214,8 +245,8 @@ class OEECalculator {
                 expectedEndTime: expectedEndTime ? expectedEndTime.format(DATE_FORMAT) : null,
 
                 // OEE Metrics
-                availability: this.oeeData[machineId].Runtime > 0 ?
-                    ((this.oeeData[machineId].Runtime - totalUnplannedDowntime) / this.oeeData[machineId].Runtime) * 100 :
+                availability: this.oeeData[machineId].actualRuntime > 0 ?
+                    ((this.oeeData[machineId].actualRuntime - totalUnplannedDowntime) / this.oeeData[machineId].actualRuntime) * 100 :
                     0,
                 performance: actualTakt ? (plannedTakt / actualTakt) * 100 : 0,
                 quality: ActualProductionQuantity > 0 ?

@@ -163,37 +163,35 @@ async function handleCommandMessage(decodedMessage, machineId) {
 
     try {
         // Validate the format of the decoded message
-        if (!decodedMessage ||
-            !decodedMessage.metrics ||
-            !Array.isArray(decodedMessage.metrics)
-        ) {
+        if (!decodedMessage?.metrics || !Array.isArray(decodedMessage.metrics)) {
             throw new Error("Invalid decodedMessage format");
         }
 
         // Iterate over each command metric in the decoded message
         for (const metricData of decodedMessage.metrics) {
-            const { name, value, type, alias } = metricData;
+            const { name, value } = metricData;
 
             const startTime = Date.now();
 
             // Handle different command types (Hold, Unhold, Start, End)
             switch (name) {
                 case "Hold":
-                    console.log(`Command/Hold: ${name}`);
+                    oeeLogger.info(`Command/Hold: ${name}`);
                     await handleHoldCommand(value, machineId);
                     break;
                 case "Unhold":
-                    console.log(`Command/Unhold: ${name}`);
+                    oeeLogger.info(`Command/Unhold: ${name}`);
                     await handleUnholdCommand(value, machineId);
                     break;
                 case "Start":
+                    oeeLogger.info(`Command/Start Value: ${machineId}`);
                     await handleProcessOrderStartCommand(value, machineId);
-                    console.log(`Command/Start: ${name}`);
+                    oeeLogger.info(`Command/Start: ${name}`);
                     // Future enhancement: add functionality to log the start of the process
                     break;
                 case "End":
                     await handleProcessOrderEndCommand(value, machineId);
-                    console.log(`Command/End: ${name}`);
+                    oeeLogger.info(`Command/End: ${name}`);
                     // Future enhancement: add functionality to log the end of the process
                     break;
                 default:
