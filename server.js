@@ -201,7 +201,8 @@ try {
     startLogCleanupJob(logRetentionDays);
     console.log(`🧹 Log-Cleanup-Job gestartet. Logs älter als ${logRetentionDays} Tage werden gelöscht.`);
 } catch (error) {
-    console.error('❌ Fehler beim Starten des Log-Cleanup-Jobs:', error);
+    console.error('❌ Fehler beim Starten des Log-Cleanup-Jobs:', error.message);
+    console.error(error.stack);
 }
 
 // === MQTT Client Initialization (if used) ===
@@ -253,7 +254,7 @@ httpsServer.listen(httpsPort, () => {
 
 // === WebSocket Server Setup ===
 try {
-    const { setWebSocketServer, sendWebSocketMessage } = require("./websocket/webSocketUtils");
+    const { setWebSocketServer } = require("./websocket/webSocketUtils");
     const handleWebSocketConnections = require("./websocket/webSocketHandler");
     const wss = new WebSocketServer({ server: httpsServer });
     setWebSocketServer(wss);
