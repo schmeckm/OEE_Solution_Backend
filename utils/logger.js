@@ -123,11 +123,6 @@ const oeeLogger = createNewLogger("oee");
 const errorLogger = createNewLogger("error");
 const defaultLogger = createNewLogger();
 
-// Log initialization messages for each logger instance
-oeeLogger.info("OEE Logger initialized successfully.");
-errorLogger.info("Error Logger initialized successfully.");
-defaultLogger.info("Default Logger initialized successfully.");
-
 // Export the loggers to be used in other parts of the application
 module.exports = {
     oeeLogger,

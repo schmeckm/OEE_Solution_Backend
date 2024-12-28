@@ -1,5 +1,6 @@
 const express = require("express");
 const { loadDataAndPrepareOEE } = require("../services/prepareOEEServices");
+
 const Joi = require("joi");
 const sanitizeHtml = require("sanitize-html");
 
@@ -47,7 +48,7 @@ const validateAndSanitizeMachineId = (machineId) => {
 
 /**
  * @swagger
- * /prepareOEE/oee/{machineId}:
+ * /oee/{machineId}:
  *   get:
  *     summary: Load data and prepare OEE calculations
  *     tags: [OEE Preparation]

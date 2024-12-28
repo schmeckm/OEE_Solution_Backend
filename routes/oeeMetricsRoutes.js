@@ -4,79 +4,60 @@ const sanitizeHtml = require('sanitize-html');
 const { writeOEEToInfluxDB, readOEEFromInfluxDB } = require('../services/oeeMetricsService');
 const router = express.Router();
 
-// Zentralisiertes Fehlerhandling
+// Middleware zur zentralisierten Fehlerbehandlung
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
-// Eingabevalidierung und -säuberung für POST
-const validateAndSanitizeOeeMetrics = (data) => {
-  const schema = Joi.object({
-    processData: Joi.object({
-      plant: Joi.string().required(),
-      area: Joi.string().required(),
-      machineId: Joi.string().required(),
-      ProcessOrderNumber: Joi.string().required(),
-      MaterialNumber: Joi.string().required(),
-      MaterialDescription: Joi.string().required(),
-      plannedProductionQuantity: Joi.number().required(),
-      plannedDowntime: Joi.number().required(),
-      unplannedDowntime: Joi.number().required(),
-      microstops: Joi.number().required(),
-    }).required(),
-    oee: Joi.number().min(0).max(100).required(),
-    availability: Joi.number().min(0).max(100).required(),
-    performance: Joi.number().min(0).max(100).required(),
-    quality: Joi.number().min(0).max(100).required(),
-  });
-
-  const { error, value } = schema.validate(data);
-
+// Definieren der validateAndSanitize Funktion
+const validateAndSanitize = (data, schema) => {
+  const { error, value } = schema.validate(data, { abortEarly: false });
   if (error) {
-    throw new Error(`Ungültige Eingabedaten: ${error.details[0].message}`);
+      throw new Error(`Validation error: ${error.details.map(d => d.message).join(', ')}`);
   }
 
-  // Eingabesäuberung
-  value.processData.plant = sanitizeHtml(value.processData.plant);
-  value.processData.area = sanitizeHtml(value.processData.area);
-  value.processData.machineId = sanitizeHtml(value.processData.machineId);
-  value.processData.ProcessOrderNumber = sanitizeHtml(value.processData.ProcessOrderNumber);
-  value.processData.MaterialNumber = sanitizeHtml(value.processData.MaterialNumber);
-  value.processData.MaterialDescription = sanitizeHtml(value.processData.MaterialDescription);
-  // Numerische Werte müssen nicht gesäubert werden
-
-  return value;
-};
-
-// Eingabevalidierung und -säuberung für GET
-const validateAndSanitizeQuery = (query) => {
-  const schema = Joi.object({
-    plant: Joi.string().optional(),
-    area: Joi.string().optional(),
-    machineId: Joi.string().optional(),
-    processOrder: Joi.string().optional(),
+  // Sanitize all string values in the data object
+  const sanitizedData = {};
+  Object.keys(value).forEach(key => {
+      sanitizedData[key] = typeof value[key] === 'string' ? sanitizeHtml(value[key]) : value[key];
   });
 
-  const { error, value } = schema.validate(query);
-
-  if (error) {
-    throw new Error(`Ungültige Abfrageparameter: ${error.details[0].message}`);
-  }
-
-  // Eingabesäuberung
-  if (value.plant) value.plant = sanitizeHtml(value.plant);
-  if (value.area) value.area = sanitizeHtml(value.area);
-  if (value.machineId) value.machineId = sanitizeHtml(value.machineId);
-  if (value.processOrder) value.processOrder = sanitizeHtml(value.processOrder);
-
-  return value;
+  return sanitizedData;
 };
+
+
+// Validation schemas defined outside of the request handlers for reuse
+const oeeMetricsSchema = Joi.object({
+  processData: Joi.object({
+    plant: Joi.string().required(),
+    area: Joi.string().required(),
+    machineId: Joi.string().required(),
+    ProcessOrderNumber: Joi.string().required(),
+    MaterialNumber: Joi.string().required(),
+    MaterialDescription: Joi.string().required(),
+    plannedProductionQuantity: Joi.number().required(),
+    plannedDowntime: Joi.number().required(),
+    unplannedDowntime: Joi.number().required(),
+    microstops: Joi.number().required(),
+  }).required(),
+  oee: Joi.number().min(0).max(100).required(),
+  availability: Joi.number().min(0).max(100).required(),
+  performance: Joi.number().min(0).max(100).required(),
+  quality: Joi.number().min(0).max(100).required(),
+});
+
+const querySchema = Joi.object({
+  plant: Joi.string().optional(),
+  area: Joi.string().optional(),
+  machineId: Joi.string().optional(),
+  processOrder: Joi.string().optional(),
+});
 
 /**
  * @swagger
  * /write-oee-metrics:
  *   post:
- *     summary: OEE-Metriken (Overall Equipment Effectiveness) in InfluxDB schreiben.
- *     description: Dieser Endpunkt akzeptiert OEE-Metrikdaten und schreibt sie mithilfe des OEE Metrics Service in InfluxDB.
+ *     summary: Write OEE metrics to InfluxDB
+ *     description: Accepts OEE metrics data and writes them using the OEE Metrics Service into InfluxDB.
  *     tags:
  *       - OEE Metrics
  *     requestBody:
@@ -84,116 +65,165 @@ const validateAndSanitizeQuery = (query) => {
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/OeeMetricsInput'
+ *             type: object
+ *             required:
+ *               - processData
+ *               - oee
+ *               - availability
+ *               - performance
+ *               - quality
+ *             properties:
+ *               processData:
+ *                 type: object
+ *                 required:
+ *                   - plant
+ *                   - area
+ *                   - machineId
+ *                   - ProcessOrderNumber
+ *                   - MaterialNumber
+ *                   - MaterialDescription
+ *                   - plannedProductionQuantity
+ *                   - plannedDowntime
+ *                   - unplannedDowntime
+ *                   - microstops
+ *                 properties:
+ *                   plant:
+ *                     type: string
+ *                   area:
+ *                     type: string
+ *                   machineId:
+ *                     type: string
+ *                   ProcessOrderNumber:
+ *                     type: string
+ *                   MaterialNumber:
+ *                     type: string
+ *                   MaterialDescription:
+ *                     type: string
+ *                   plannedProductionQuantity:
+ *                     type: number
+ *                   plannedDowntime:
+ *                     type: number
+ *                   unplannedDowntime:
+ *                     type: number
+ *                   microstops:
+ *                     type: number
+ *               oee:
+ *                 type: number
+ *                 format: double
+ *               availability:
+ *                 type: number
+ *                 format: double
+ *               performance:
+ *                 type: number
+ *                 format: double
+ *               quality:
+ *                 type: number
+ *                 format: double
  *     responses:
  *       200:
- *         description: OEE-Metriken erfolgreich in InfluxDB geschrieben.
+ *         description: Metrics successfully written.
  *       400:
- *         description: Ungültige Eingabedaten.
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Invalid input data.
  *       500:
- *         description: Fehler beim Schreiben der Metriken aufgrund eines internen Serverfehlers.
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Server error during data writing.
  */
-router.post(
-  '/write-oee-metrics',
-  asyncHandler(async (req, res) => {
-    try {
-      const sanitizedData = validateAndSanitizeOeeMetrics(req.body);
-      await writeOEEToInfluxDB(sanitizedData);
-      res.status(200).json({ message: 'Metriken erfolgreich geschrieben' });
-    } catch (error) {
-      if (error.message.startsWith('Ungültige Eingabedaten')) {
-        res.status(400).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Fehler beim Schreiben der Metriken', error: error.message });
-      }
-    }
-  })
-);
-
+router.post('/write-oee-metrics', asyncHandler(async (req, res) => {
+  try {
+    const sanitizedData = validateAndSanitize(req.body, oeeMetricsSchema);
+    await writeOEEToInfluxDB(sanitizedData);
+    res.status(200).json({ message: 'Metrics successfully written.' });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+}));
 /**
  * @swagger
- * /read-oee-metrics:
+ * /oee-metrics/read-oee-metrics:
  *   get:
- *     summary: OEE-Metriken (Overall Equipment Effectiveness) aus InfluxDB lesen.
- *     description: Dieser Endpunkt ruft OEE-Metrikdaten aus InfluxDB basierend auf optionalen Filtern wie Plant, Area, Maschinen-ID und Prozessauftrag ab.
+ *     summary: Read OEE metrics from InfluxDB
+ *     description: Retrieves OEE metrics data from InfluxDB based on optional filters like Plant, Area, Machine ID, Process Order, Start Time, and End Time.
  *     tags:
  *       - OEE Metrics
  *     parameters:
  *       - in: query
  *         name: plant
- *         required: false
  *         schema:
  *           type: string
- *         description: Filter nach Plant.
+ *         required: false
+ *         description: Filter by Plant.
  *       - in: query
  *         name: area
- *         required: false
  *         schema:
  *           type: string
- *         description: Filter nach Area.
+ *         required: false
+ *         description: Filter by Area.
  *       - in: query
  *         name: machineId
- *         required: false
  *         schema:
  *           type: string
- *         description: Filter nach Maschinen-ID.
+ *         required: false
+ *         description: Filter by Machine ID.
  *       - in: query
  *         name: processOrder
- *         required: false
  *         schema:
  *           type: string
- *         description: Filter nach Prozessauftragsnummer.
+ *         required: false
+ *         description: Filter by Process Order Number.
+ *       - in: query
+ *         name: startTime
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         required: false
+ *         description: Filter by Start Time (ISO 8601 format).
+ *       - in: query
+ *         name: endTime
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         required: false
+ *         description: Filter by End Time (ISO 8601 format).
  *     responses:
  *       200:
- *         description: OEE-Metriken erfolgreich aus InfluxDB abgerufen.
- *       400:
- *         description: Ungültige Abfrageparameter.
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Metrics successfully retrieved.
  *       404:
- *         description: Keine Metriken gefunden.
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: No metrics found.
+ *       400:
+ *         description: Invalid query parameters.
  *       500:
- *         description: Fehler beim Abrufen der Metriken aufgrund eines internen Serverfehlers.
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Server error during data retrieval.
  */
-router.get(
-  '/read-oee-metrics',
-  asyncHandler(async (req, res) => {
-    try {
-      const filters = validateAndSanitizeQuery(req.query);
 
-      const data = await readOEEFromInfluxDB(filters);
+router.get('/read-oee-metrics', asyncHandler(async (req, res) => {
+  try {
+    const filters = validateAndSanitize(req.query, querySchema);
+    const rawData = await readOEEFromInfluxDB(filters);
 
-      if (data.length > 0) {
-        res.status(200).json(data);
-      } else {
-        res.status(404).json({ message: 'Keine Metriken gefunden' });
-      }
-    } catch (error) {
-      if (error.message.startsWith('Ungültige Abfrageparameter')) {
-        res.status(400).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Fehler beim Abrufen der Metriken', error: error.message });
-      }
+    if (rawData.length > 0) {
+      const processedData = rawData.map(item => ({
+        id: item[1],
+        periodStart: new Date(item[2]).toISOString(),
+        periodEnd: new Date(item[3]).toISOString(),
+        timestamp: new Date(item[4]).toISOString(),
+        value: parseFloat(item[5]),
+        department: item[6],
+        processOrderNumber: item[7],
+        materialNumber: item[8],
+        metricType: item[9],
+        measurementName: item[10],
+        area: item[11],
+        machineId: item[12],
+        plant: item[13]
+      }));
+      
+      res.status(200).json(processedData);
+    } else {
+      res.status(404).json({ message: 'No metrics found.' });
     }
-  })
-);
+  } catch (error) {
+    console.error('Error retrieving OEE metrics:', error);
+    res.status(400).json({ message: 'Error processing your request' });
+  }
+}));
 
 module.exports = router;

@@ -149,16 +149,15 @@ function generateMachineTopics(machine) {
         return topics;
     }
 
-    if (!machine || !machine.Plant || !machine.area || !machine.name) {
+    if (!(machine?.plant && machine?.area && machine?.name)) {
         oeeLogger.error("Machine object is missing required properties.");
         return topics;
     }
 
     Object.keys(oeeConfig).forEach(key => {
         const topicType = ["Hold", "Unhold", "Start", "End"].includes(key) ? "DCMD" : "DDATA";
-        topics.push(`spBv1.0/${machine.Plant}/${machine.area}/${topicType}/${machine.name}/${key}`);
+        topics.push(`spBv1.0/${machine.plant}/${machine.area}/${topicType}/${machine.name}/${key}`);
     });
-    oeeLogger.info(`Generated topics: ${topics.join(", ")}`);
     return topics;
 }
 

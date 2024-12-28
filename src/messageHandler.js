@@ -1,5 +1,5 @@
 // Import required modules and functions from utility files
-const { oeeLogger, errorLogger, defaultLogger } = require("../utils/logger");
+const { oeeLogger, errorLogger } = require("../utils/logger");
 const { processMetrics, updateMetric } = require("./oeeProcessor");
 const {
     handleHoldCommand,
@@ -8,8 +8,8 @@ const {
     handleProcessOrderEndCommand,
 } = require("./commandHandler");
 const oeeConfig = require("../config/oeeConfig.json");
-const { loadProcessOrderData, loadProcessOrderDataByMachine } = require("./dataLoader");
-const moment = require("moment-timezone");
+
+const { loadProcessOrderDataByMachine } = require("./dataLoader");
 
 // Persistent metrics matrix to keep track of all metrics over time
 let metricsMatrix = [];
@@ -21,133 +21,107 @@ let metricsMatrix = [];
  * @param {Object} decodedMessage - The decoded message containing OEE metrics.
  * @param {string} machineId - The machine ID.
  */
-async function handleOeeMessage(decodedMessage, machineId, metric) {
+async function handleOeeMessage(decodedMessage, machineId) {
     try {
-        // Initialize oeeData if not already initialized
-        if (!this.oeeData) {
-            this.oeeData = {};
-            oeeLogger.debug("Debug:handleOeeMessage ");
-            oeeLogger.debug("-----------------------");
-        }
-
-        // Initialize oeeData for the specific machineId if not present
-        if (!this.oeeData[machineId]) {
-            this.oeeData[machineId] = {};
-            oeeLogger.debug(`Initialized oeeData for machineId: ${machineId}`);
-        }
-
-        let validMetricProcessed = false;
-
-        // Define mandatory static metrics required for OEE calculation
-        const mandatoryStaticMetrics = [
-            "plannedProductionQuantity",
-            "Runtime",
-            "targetPerformance",
-        ];
-
-        // Load the process order data
-        oeeLogger.debug(`Loading process order data for machineId: ${machineId}`);
+        initializeOeeData(machineId);
         const processOrderData = await loadProcessOrderDataByMachine(machineId);
+        validateProcessOrderData(processOrderData);
 
-        // oeeLogger.debug('Process Order Data: ' + JSON.stringify(processOrderData, null, 2));
-        
-        // Check if processOrderData is an array
-        if (!Array.isArray(processOrderData)) {
-            throw new Error("Process order data is not an array");
+        for (const { name, value } of decodedMessage.metrics) {
+            await processMetric(name, value, machineId, processOrderData);
         }
-
-        // Iterate over each metric in the decoded message
-        for (const metricData of decodedMessage.metrics) {
-            const { name, value } = metricData;
-            let metricSource = "undefined"; // Default source as undefined
-            let finalValue = value;
-
-            // Check if the metric is defined in oeeConfig
-            if (oeeConfig[name]) {
-                // Update metric from MQTT data if the metric is connected to the machine
-                if (oeeConfig[name].machineConnect === true) {
-                    if (value !== undefined && value !== null && !isNaN(value)) {
-                        metricSource = "MQTT";
-
-                        if (this.oeeData[machineId][name] !== value) {
-                            oeeLogger.debug(`Metric ${name} for machineId ${machineId} will be updated from ${this.oeeData[machineId][name]} to ${value}`);
-                            await updateMetric(name, value, machineId);
-                            validMetricProcessed = true;
-                            this.oeeData[machineId][name] = value;
-                            oeeLogger.debug(`Updated metric ${name} from MQTT data`);
-                        }
-                    } else {
-                        oeeLogger.warn(
-                            `Metric ${name} has an invalid value: ${value}. Skipping.`
-                        );
-                    }
-                // Update metric from process order if it's a mandatory static metric
-                } else if (mandatoryStaticMetrics.includes(name)) {
-                    const order = processOrderData.find(
-                        (order) => order.machine_id === machineId
-                    );
-
-                    if (order) {
-                        if (name === "Runtime") {
-                            finalValue =
-                                order.setupTime + order.processingTime + order.teardownTime;
-                            metricSource = "Process Order (Calculated)";
-                        } else {
-                            finalValue = order[name];
-                            metricSource = "Process Order";
-                        }
-
-                        if (
-                            finalValue !== undefined &&
-                            finalValue !== null &&
-                            !isNaN(finalValue)
-                        ) {
-                            if (this.oeeData[machineId][name] !== finalValue) {
-                                await updateMetric(name, finalValue, machineId);
-                                validMetricProcessed = true;
-                                this.oeeData[machineId][name] = finalValue;
-                                oeeLogger.debug(`Updated metric ${name} from process order data`);
-                            }
-                        } else {
-                            oeeLogger.warn(
-                                `Static metric ${name} not found or invalid in process order. Skipping.`
-                            );
-                        }
-                    } else {
-                        oeeLogger.warn(
-                            `No process order found for machine ID ${machineId}. Skipping metric ${name}.`
-                        );
-                    }
-                } else {
-                    oeeLogger.warn(
-                        `Metric ${name} is neither marked for calculation nor mandatory. Skipping.`
-                    );
-                }
-            } else {
-                oeeLogger.warn(`Metric ${name} is not defined in oeeConfig.`);
-            }
-
-            // Update the metrics matrix with the processed metric
-            let metricEntry = metricsMatrix.find((entry) => entry.metric === name);
-            if (metricEntry) {
-                metricEntry.source = metricSource;
-                metricEntry.value = finalValue !== undefined ? finalValue : "N/A";
-                metricEntry.valid = metricSource !== "undefined";
-            } else {
-                metricsMatrix.push({
-                    metric: name,
-                    source: metricSource,
-                    value: finalValue !== undefined ? finalValue : "N/A",
-                    valid: metricSource !== "undefined",
-                });
-            }
-        }
-        
     } catch (error) {
-        errorLogger.error(
-            `Error processing metrics for machine ${machineId}: ${error.message}`
-        );
-        errorLogger.error(error.stack);
+        logError(error, machineId);
+    }
+}
+
+function initializeOeeData(machineId) {
+    this.oeeData = this.oeeData || {};
+    this.oeeData[machineId] = this.oeeData[machineId] || {};
+    oeeLogger.debug(`Initialized oeeData for machineId: ${machineId}`);
+}
+
+function validateProcessOrderData(processOrderData) {
+    if (!Array.isArray(processOrderData)) {
+        throw new Error("Process order data is not an array");
+    }
+}
+
+async function processMetric(name, value, machineId, processOrderData) {
+    let metricSource = "undefined";
+    let finalValue = value;
+
+    if (!oeeConfig[name]) {
+        oeeLogger.warn(`Metric ${name} is not defined in oeeConfig.`);
+        return;
+    }
+
+    if (oeeConfig[name].machineConnect === true) {
+        if (isValidValue(value)) {
+            metricSource = "MQTT";
+            await updateMetricIfChanged(name, value, machineId);
+        } else {
+            oeeLogger.warn(`Metric ${name} has an invalid value: ${value}. Skipping.`);
+        }
+    } else if (isMandatoryStaticMetric(name)) {
+        const order = processOrderData.find(order => order.machine_id === machineId);
+        if (order) {
+            finalValue = calculateFinalValue(name, order);
+            metricSource = getMetricSource(name);
+            await updateMetricIfChanged(name, finalValue, machineId);
+        } else {
+            oeeLogger.warn(`No process order found for machine ID ${machineId}. Skipping metric ${name}.`);
+        }
+    } else {
+        oeeLogger.warn(`Metric ${name} is neither marked for calculation nor mandatory. Skipping.`);
+    }
+
+    updateMetricsMatrix(name, metricSource, finalValue);
+}
+
+function isMandatoryStaticMetric(name) {
+    const mandatoryStaticMetrics = ["plannedProductionQuantity", "Runtime", "targetPerformance"];
+    return mandatoryStaticMetrics.includes(name);
+}
+
+function getMetricSource(name) {
+    return name === "Runtime" ? "Process Order (Calculated)" : "Process Order";
+}
+
+function logError(error, machineId) {
+    errorLogger.error(`Error processing metrics for machine ${machineId}: ${error.message}`);
+    errorLogger.error(error.stack);
+}
+
+function isValidValue(value) {
+    return value !== undefined && value !== null && !isNaN(value);
+}
+
+async function updateMetricIfChanged(name, value, machineId) {
+    if (this.oeeData[machineId][name] !== value) {
+        await updateMetric(name, value, machineId);
+        this.oeeData[machineId][name] = value;
+        oeeLogger.debug(`Updated metric ${name} for machineId ${machineId} to ${value}`);
+    }
+}
+
+function calculateFinalValue(name, order) {
+    return name === "Runtime" ? order.setupTime + order.processingTime + order.teardownTime : order[name];
+}
+
+function updateMetricsMatrix(name, source, value) {
+    let metricEntry = metricsMatrix.find(entry => entry.metric === name);
+    if (metricEntry) {
+        metricEntry.source = source;
+        metricEntry.value = value !== undefined ? value : "N/A";
+        metricEntry.valid = source !== "undefined";
+    } else {
+        metricsMatrix.push({
+            metric: name,
+            source: source,
+            value: value !== undefined ? value : "N/A",
+            valid: source !== "undefined",
+        });
     }
 }
 
@@ -160,20 +134,14 @@ async function handleOeeMessage(decodedMessage, machineId, metric) {
  * @param {string} machineId - The machine ID.
  */
 async function handleCommandMessage(decodedMessage, machineId) {
-
     try {
-        // Validate the format of the decoded message
         if (!decodedMessage?.metrics || !Array.isArray(decodedMessage.metrics)) {
             throw new Error("Invalid decodedMessage format");
         }
 
-        // Iterate over each command metric in the decoded message
-        for (const metricData of decodedMessage.metrics) {
-            const { name, value } = metricData;
-
+        for (const { name, value } of decodedMessage.metrics) {
             const startTime = Date.now();
 
-            // Handle different command types (Hold, Unhold, Start, End)
             switch (name) {
                 case "Hold":
                     oeeLogger.info(`Command/Hold: ${name}`);
@@ -187,12 +155,10 @@ async function handleCommandMessage(decodedMessage, machineId) {
                     oeeLogger.info(`Command/Start Value: ${machineId}`);
                     await handleProcessOrderStartCommand(value, machineId);
                     oeeLogger.info(`Command/Start: ${name}`);
-                    // Future enhancement: add functionality to log the start of the process
                     break;
                 case "End":
                     await handleProcessOrderEndCommand(value, machineId);
                     oeeLogger.info(`Command/End: ${name}`);
-                    // Future enhancement: add functionality to log the end of the process
                     break;
                 default:
                     oeeLogger.warn(`Unknown command: ${name}`);

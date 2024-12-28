@@ -131,8 +131,6 @@ async function loadDataAndPrepareOEE(machineId) {
         };
 
         try {
-            // oeeLogger.debug(`Initial OEE Data: ${JSON.stringify(OEEData)}`);
-
             // Process the time intervals and assign the data
             let currentTime = moment(processOrderStartTime).startOf("hour");
             const orderEnd = moment(processOrderEndTime).endOf("hour");

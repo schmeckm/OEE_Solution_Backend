@@ -23,7 +23,7 @@
     "oeeAsPercent": true,
     "influxdb": {
         "url": "http://136.244.90.128:8086",
-        "token": "D-5d-bxYWX-hr6-NXnlexL1dr6jsy2-ruvX0Tg54YmDJ-tvVJbvhA7pZmpoR3jGsbmg3APIUnpzPHjmWtLIOFw==",
+        "token": "_gprKUBNSgmxy0ItrQPizZ0qUhTGnUZB8wXDcnor_QrqfP7zQw2vwdVERQfjcvFMH1h9XXnn33WB6OmmqsXV8g==",
         "org": "drugproduct_center",
         "bucket": "OEE_Data"
     },

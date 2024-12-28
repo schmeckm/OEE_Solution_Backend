@@ -8,15 +8,14 @@ const {
     apiClient
 } = require("./header");
 
-const { writeOEEToInfluxDB } = require("../services/oeeMetricsService");
 const { sendWebSocketMessage } = require("../websocket/webSocketUtils");
 const { influxdb } = require("../config/config");
 const { loadMachineData, loadDataAndPrepareOEE, loadProcessOrderDataByMachine } = require("./dataLoader");
 const OEECalculator = require("./oeeCalculator");
 
-require('dotenv').config(); // Laden der Umgebungsvariablen
+require('dotenv').config(); // Load environment variables
 
-// Zugriff auf die Umgebungsvariablen
+// Access environment variables
 const dateFormat = DATE_FORMAT;
 const timezone = TIMEZONE;
 
@@ -47,11 +46,11 @@ function logTabularData(metrics) {
     oeeLogger.info(`Call number: ${logCallCount}`);
     oeeLogger.info(`\n--- OEE Metrics for Machine: ${lineId} ---`);
 
-    // Sicherstellen, dass die Variablen nicht null oder undefined sind
+    // Ensure that variables are not null or undefined
     const safeLineId = lineId || "Unknown";
     const safeClassification = classification || "N/A";
 
-    // Sicherstellen, dass numerische Werte nicht null oder undefined sind
+    // Ensure that numeric values are not null or undefined
     const safeAvailability = availability !== null && availability !== undefined ? availability : 0;
     const safePerformance = performance !== null && performance !== undefined ? performance : 0;
     const safeQuality = quality !== null && quality !== undefined ? quality : 0;
@@ -80,6 +79,7 @@ function logTabularData(metrics) {
   +-----------------------------------------------+-------------------+
   `);
 }
+
 async function getPlantAndArea(machineId) {
     try {
         const url = `${process.env.OEE_API_URL}/workcenters/${machineId}`;
@@ -92,7 +92,7 @@ async function getPlantAndArea(machineId) {
         }
         
         return {
-            plant: machine?.Plant || UNKNOWN_VALUES.PLANT,
+            plant: machine?.plant || UNKNOWN_VALUES.PLANT,
             area: machine?.area || UNKNOWN_VALUES.AREA,
             lineId: machine?.name || UNKNOWN_VALUES.LINE,
         };
@@ -101,6 +101,10 @@ async function getPlantAndArea(machineId) {
         return { plant: UNKNOWN_VALUES.PLANT, area: UNKNOWN_VALUES.AREA, lineId: UNKNOWN_VALUES.LINE };
     }
 }
+
+
+
+
 
 async function updateMetric(name, value, machineId) {
     try {
@@ -121,6 +125,23 @@ async function updateMetric(name, value, machineId) {
     }
 }
 
+/**
+ * Processes OEE metrics for a given machine.
+ *
+ * @async
+ * @function processMetrics
+ * @param {string} machineId - The ID of the machine to process metrics for.
+ * @param {Object} buffer - The buffer containing production data.
+ * @param {number} [buffer.ActualProductionQuantity=0] - The actual production quantity.
+ * @param {number} [buffer.ActualProductionYield=0] - The actual production yield.
+ * @throws {Error} Throws an error if initialization or metric calculation fails.
+ * @returns {Promise<void>}
+ *
+ * @example
+ * const machineId = 'machine123';
+ * const buffer = { ActualProductionQuantity: 100, ActualProductionYield: 95 };
+ * await processMetrics(machineId, buffer);
+ */
 async function processMetrics(machineId, buffer) {
     try {
         let calculator = oeeCalculators.get(machineId) || new OEECalculator();
@@ -140,7 +161,7 @@ async function processMetrics(machineId, buffer) {
         }
 
         const { plant, area, lineId } = await getPlantAndArea(machineId);
-        oeeLogger.debug(`Plant: ${plant}, Area: ${area}, Line: ${lineId}`);
+        oeeLogger.info(`Plant: ${plant}, Area: ${area}, Line: ${lineId}`);
 
         calculator.oeeData[machineId] = { ...calculator.oeeData[machineId], plant, area, lineId, ...buffer };
         
@@ -159,18 +180,11 @@ async function processMetrics(machineId, buffer) {
         validateInputData(totalTimes, machineId);
         const ActualProductionQuantity = buffer?.ActualProductionQuantity || 0;
         const ActualProductionYield = buffer?.ActualProductionYield || 0;
-        await calculator.calculateMetrics(machineId, totalTimes.UnplannedDowntime, totalTimes.plannedDowntime + totalTimes.breakTime + totalTimes.microstops, ActualProductionQuantity, ActualProductionYield, processOrder);
+        await calculator.calculateMetrics(machineId, totalTimes.unplannedDowntime, totalTimes.plannedDowntime + totalTimes.breakTime + totalTimes.microstops, ActualProductionQuantity, ActualProductionYield, processOrder);
         const metrics = calculator.getMetrics(machineId);
         if (!metrics) throw new Error(`Metrics could not be calculated for machineId: ${machineId}.`);
         logTabularData(metrics);
-        if (processOrder.ProcessOrderStatus === 'COMPLETED' || processOrder.ActualProcessOrderEnd) {
-            if (influxdb.url && influxdb.token && influxdb.org && influxdb.bucket) {
-                await writeOEEToInfluxDB(metrics);
-                oeeLogger.debug("Metrics written to InfluxDB.");
-            }
-        } else {
-            oeeLogger.debug(`Process Order for machine ${machineId} is not completed. InfluxDB write skipped.`);
-        }
+       
         if (process.env.WEBSOCKET === 'true') {
             sendWebSocketMessage("OEEData", metrics);
             oeeLogger.info("OEE data sent to WebSocket clients.");
@@ -198,18 +212,18 @@ function calculateTotalTimes(datasets) {
         switch (index) {
             case 0: totals.productionTime = total; break;
             case 1: totals.breakTime = total; break;
-            case 2: totals.UnplannedDowntime = total; break;
+            case 2: totals.unplannedDowntime = total; break;
             case 3: totals.plannedDowntime = total; break;
             case 4: totals.microstops = total; break;
         }
         return totals;
-    }, { productionTime: 0, breakTime: 0, UnplannedDowntime: 0, plannedDowntime: 0, microstops: 0 });
+    }, { productionTime: 0, breakTime: 0, unplannedDowntime: 0, plannedDowntime: 0, microstops: 0 });
 }
 
 function validateInputData(totalTimes, machineId) {
-    const { UnplannedDowntime, plannedDowntime, productionTime } = totalTimes;
+    const { unplannedDowntime, plannedDowntime, productionTime } = totalTimes;
     if (productionTime <= 0) throw new Error(`Invalid input data for machine ${machineId}: productionTime must be greater than 0`);
-    if (UnplannedDowntime < 0 || plannedDowntime < 0) throw new Error(`Invalid input data for machine ${machineId}: downtime values must be non-negative`);
+    if (unplannedDowntime < 0 || plannedDowntime < 0) throw new Error(`Invalid input data for machine ${machineId}: downtime values must be non-negative`);
 }
 
 async function getOEEMetrics(machineId) {

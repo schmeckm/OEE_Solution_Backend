@@ -9,7 +9,7 @@ module.exports = (sequelize) => {
             defaultValue: DataTypes.UUIDV4,
             field: 'workcenter_id'  // Der tatsächliche Name der Spalte in der Datenbank
         },
-        Plant: {
+        plant: {
             type: DataTypes.STRING,
             allowNull: false,
             field: 'plant'  // Hier wird "Plant" als Modellname verwendet, aber die Spalte heißt "plant"

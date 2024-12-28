@@ -11,9 +11,10 @@ const {
 } = require("./header");
 
 const { v4: uuidv4 } = require("uuid");
-const { saveMachineStoppagesData } = require("./dataLoader");
+const { invalidateCache  } = require("./dataLoader");
 const { sendWebSocketMessage } = require("../websocket/webSocketUtils");
-
+const { influxdb } = require("../config/config");
+const { writeOEEToInfluxDB } = require("../services/oeeMetricsService");
 let currentHoldStatus = {};
 
 /**
@@ -150,7 +151,10 @@ async function handleProcessOrderStartCommand(value, machineId) {
  */
 async function handleProcessOrderEndCommand(value, machineId) {
     const timestamp = moment().tz(TIMEZONE).toISOString();
+    const processorderstatus = "CLD";
     console.log(`handleProcessOrderEnd called for machineId: ${machineId} at ${timestamp}`);
+
+    let metrics;
 
     try {
         const response = await apiClient.get(`/processorders/rel`, {
@@ -159,31 +163,50 @@ async function handleProcessOrderEndCommand(value, machineId) {
 
         const processOrder = response.data[0];
         delete processOrder.marked;
-
+        oeeLogger.info(`Process Order Start for machine ${machineId} found: ${JSON.stringify(processOrder)}`);
         if (processOrder) {
             const processOrderId = processOrder.order_id;
             oeeLogger.info(`Process Order End for ProcessOrderID: ${processOrderId}`);
 
+            try {
+                const response = await apiClient.get(`/oee/${machineId}`);
+                metrics = response.data;
+                oeeLogger.info(`OEE metrics retrieved successfully for machine ${machineId}: ${JSON.stringify(metrics)}`);
+            } catch (error) {
+                logError(`Failed to retrieve OEE metrics for machineId ${machineId}`, error);
+                return;
+            }
+
             await apiClient.put(`/processorders/${processOrderId}`, {
                 ...processOrder,
-                actualprocessorderend: timestamp
+                actualprocessorderend: timestamp,
+                processorderstatus: processorderstatus
             });
-            oeeLogger.info(`Updated ActualProcessOrderEnd for ProcessOrderID: ${processOrderId} to ${timestamp}`);
+
         } else {
             oeeLogger.warn(`No active process order found for machineId: ${machineId}`);
         }
     } catch (error) {
         errorLogger.error(`Failed to update ActualProcessOrderEnd for machineId ${machineId}: ${error.message}`);
     }
-}
 
+    if (processorderstatus === 'CLD' || actualprocessorderend) {
+        oeeLogger.info(`Process Order for machine ${machineId} is completed. Writing metrics to InfluxDB.`);
+            await writeOEEToInfluxDB(metrics);
+            oeeLogger.info("Metrics written to InfluxDB.");
+            
+    } else {
+        oeeLogger.debug(`Process Order for machine ${machineId} is not completed. InfluxDB write skipped.`);
+    }
+    invalidateCache();
+}
 /**
  * Logs an error message.
  * @param {string} message - The error message to log.
  * @param {Error} [error] - The error object containing details about the error.
  */
 function logError(message, error) {
-    const fullMessage = `${message}${error ? `: ${error.message}` : ""}`;
+    const fullMessage = message + (error ? ": " + error.message : "");
     errorLogger.error(fullMessage);
     console.log(`ERROR: ${fullMessage}`);
 }
