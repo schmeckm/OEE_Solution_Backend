@@ -1,4 +1,4 @@
-name: Deploy Node.js Application
+name: Deploy on Server
 
 on:
   push:
@@ -6,32 +6,37 @@ on:
       - main
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      # Installiere Node.js Version 20.16.0
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20.16.0'
-          cache: 'yarn'
+    - uses: actions/checkout@v2
 
-      # Klonen des Repositorys
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Set up Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '14'
 
-      # Installieren der Abhängigkeiten
-      - name: Install Dependencies
-        run: |
-          yarn install
+    - name: Install dependencies
+      run: npm install
 
-      # Start oder Neustart der Anwendung mit PM2
-      - name: Start or Restart Application
-        run: |
-          pm2 start server.js --name "OEE_solution" --update-env || pm2 restart OEE_solution --update-env
+    - name: Build
+      run: npm run build
 
-      # Überprüfen der PM2-Logs für Fehler
-      - name: Check PM2 Logs
-        run: |
-          pm2 logs OEE_solution --lines 50
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Deploy to server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USERNAME }}
+        password: ${{ secrets.SERVER_PASSWORD }}
+        script: |
+          cd /path/to/your/deployment/folder
+          git pull origin main
+          npm install --production
+          pm2 restart all
