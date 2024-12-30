@@ -76,6 +76,22 @@ const loadDowntimeData = (cacheKey, endpoint) => fetchDataWithCache(cacheKey, en
     }));
 });
 
+const getPlantAndArea = (machineId) => fetchDataWithCache(`plantAndArea.${machineId}`, `/workcenters/${machineId}`, (data) => {
+    if (!data) {
+        oeeLogger.warn(`No data returned for machineId ${machineId}`);
+    }
+    return {
+        plant: data?.plant || UNKNOWN_VALUES.PLANT,
+        area: data?.area || UNKNOWN_VALUES.AREA,
+        lineId: data?.name || UNKNOWN_VALUES.LINE,
+    };
+}).catch(error => {
+    errorLogger.error(`Error retrieving plant and area for machineId ${machineId}: ${error.message}`);
+    return { plant: UNKNOWN_VALUES.PLANT, area: UNKNOWN_VALUES.AREA, lineId: UNKNOWN_VALUES.LINE };
+});
+
+
+
 // Load unplanned downtime data from the API, caching the result
 const loadUnplannedDowntimeData = () => loadDowntimeData('unplannedDowntime', '/unplanneddowntime');
 
@@ -341,6 +357,7 @@ module.exports = {
     loadMachineData,
     loadUnplannedDowntimeData,
     loadMicrostops,
+    getPlantAndArea,
     loadPlannedDowntimeData,
     getMachineIdFromLineCode,
     loadProcessOrderData,

@@ -8,9 +8,10 @@ const {
     apiClient
 } = require("./header");
 
+
 const { sendWebSocketMessage } = require("../websocket/webSocketUtils");
 const { influxdb } = require("../config/config");
-const { loadMachineData, loadDataAndPrepareOEE, loadProcessOrderDataByMachine } = require("./dataLoader");
+const { loadMachineData, loadDataAndPrepareOEE, loadProcessOrderDataByMachine, getPlantAndArea } = require("./dataLoader");
 const OEECalculator = require("./oeeCalculator");
 
 require('dotenv').config(); // Load environment variables
@@ -80,32 +81,6 @@ function logTabularData(metrics) {
   `);
 }
 
-async function getPlantAndArea(machineId) {
-    try {
-        const url = `${process.env.OEE_API_URL}/workcenters/${machineId}`;
-        
-        const response = await axios.get(url);
-        
-        const machine = response.data;
-        if (!machine) {
-            oeeLogger.warn(`No data returned for machineId ${machineId}`);
-        }
-        
-        return {
-            plant: machine?.plant || UNKNOWN_VALUES.PLANT,
-            area: machine?.area || UNKNOWN_VALUES.AREA,
-            lineId: machine?.name || UNKNOWN_VALUES.LINE,
-        };
-    } catch (error) {
-        errorLogger.error(`Error retrieving plant and area for machineId ${machineId}: ${error.message}`);
-        return { plant: UNKNOWN_VALUES.PLANT, area: UNKNOWN_VALUES.AREA, lineId: UNKNOWN_VALUES.LINE };
-    }
-}
-
-
-
-
-
 async function updateMetric(name, value, machineId) {
     try {
         if (!metricBuffers.has(machineId)) metricBuffers.set(machineId, {});
@@ -161,6 +136,7 @@ async function processMetrics(machineId, buffer) {
         }
 
         const { plant, area, lineId } = await getPlantAndArea(machineId);
+
         oeeLogger.info(`Plant: ${plant}, Area: ${area}, Line: ${lineId}`);
 
         calculator.oeeData[machineId] = { ...calculator.oeeData[machineId], plant, area, lineId, ...buffer };
@@ -169,8 +145,7 @@ async function processMetrics(machineId, buffer) {
         
         if (!processOrderData || processOrderData.length === 0) throw new Error(`No active process order found for machine ${machineId}`);
         const processOrder = processOrderData[0];
-        let OEEData;
-        try {
+        let OEEData;        try {
             OEEData = await loadDataAndPrepareOEE(machineId);
             validateOEEData(OEEData);
         } catch (error) {

@@ -22,6 +22,7 @@ const apiClient = axios.create({
     headers: { 'x-api-key': API_KEY },
 });
 
+
 // Example of logging in error scenarios
 try {
     throw new Error("Something went wrong!");

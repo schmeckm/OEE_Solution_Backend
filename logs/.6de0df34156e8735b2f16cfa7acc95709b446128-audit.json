@@ -6,14 +6,9 @@
     "auditLog": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\.6de0df34156e8735b2f16cfa7acc95709b446128-audit.json",
     "files": [
         {
-            "date": 1735310782862,
-            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\exceptions-2024-12-27.log",
-            "hash": "3e92b2e3a68d8f68e14146f7944d24c4db741687a5970e4429c3ca0a5d6cbf54"
-        },
-        {
-            "date": 1735379857583,
-            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\exceptions-2024-12-28.log",
-            "hash": "da7d6e596305f74819a54fe7ace459d76ad328a8e97d5050198cdc1a9de8f3cd"
+            "date": 1735574024775,
+            "name": "C:\\Users\\marku\\OneDrive\\Dokumente\\markus_data\\Private Daten\\Software Development\\3.Project\\3.1 Visual_Studio_Projects\\OEE_Event_Driven II\\backend\\logs\\exceptions-2024-12-30.log",
+            "hash": "2b9fbbcb2c9471339f9878be245eca0998df1cf917a3b207467eb262a23e8c72"
         }
     ],
     "hashType": "sha256"
