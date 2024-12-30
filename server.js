@@ -143,20 +143,29 @@ try {
     process.exit(1);
 }
 
-// === API Key Middleware for External Requests Only ===
+// === API Key Middleware for External 
 try {
     const { defaultLogger } = require("./utils/logger");
+    
     app.use((req, res, next) => {
         const apiKey = req.headers['x-api-key'];
         const clientIp = req.ip || req.socket.remoteAddress;
         const requestHostname = req.hostname;
 
+        // Erkennung interner Anfragen
         const isInternalRequest = ['::1', '127.0.0.1', 'localhost', process.env.INTERNAL_SERVER_IP].includes(clientIp) ||
             requestHostname === 'localhost' ||
             requestHostname === process.env.INTERNAL_SERVER_HOSTNAME;
 
         defaultLogger.info(`📍 Anfrage von IP: ${clientIp}, Hostname: ${requestHostname}, Intern: ${isInternalRequest}`);
 
+        // Swagger-Endpunkte von der Authentifizierung ausschließen
+        if (req.path.startsWith('/api-docs') || req.path === '/swagger.json') {
+            defaultLogger.info('🔓 Zugriff auf Swagger-Endpunkt erlaubt.');
+            return next();
+        }
+
+        // API-Key-Validierung für Produktionsumgebung
         if (process.env.NODE_ENV === 'production' && !isInternalRequest && apiKey !== process.env.API_KEY) {
             defaultLogger.error('❌ Unautorisiert: Ungültiger API-Schlüssel bereitgestellt.');
             return res.status(401).json({ error: 'Unautorisiert: Ungültiger API-Schlüssel' });
@@ -164,11 +173,13 @@ try {
 
         next();
     });
+
     console.log('🔒 API-Key Middleware erfolgreich eingerichtet.');
 } catch (error) {
     console.error('❌ Fehler beim Einrichten der API-Key Middleware:', error);
     process.exit(1);
 }
+
 
 // === Register API Routes ===
 try {
