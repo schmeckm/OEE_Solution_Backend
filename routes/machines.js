@@ -20,8 +20,10 @@ const asyncHandler = fn => (req, res, next) =>
   });
 
 const validateWorkCenter = [
+  body('workcenter_id').isUUID().withMessage('Workcenter ID must be a valid UUID'),
+  body('plant').trim().isLength({ min: 1 }).withMessage('Plant must not be empty'),
+  body('area').trim().isLength({ min: 1 }).withMessage('Area must not be empty'),
   body('name').trim().isLength({ min: 1 }).withMessage('Name must not be empty'),
-  body('status').isIn(['active', 'inactive']).withMessage('Status must be either active or inactive'),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
