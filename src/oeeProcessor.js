@@ -8,7 +8,6 @@ const {
     apiClient
 } = require("./header");
 
-
 const { sendWebSocketMessage } = require("../websocket/webSocketUtils");
 const { influxdb } = require("../config/config");
 const { loadMachineData, loadDataAndPrepareOEE, loadProcessOrderDataByMachine, getPlantAndArea } = require("./dataLoader");
@@ -84,16 +83,13 @@ function logTabularData(metrics) {
 async function updateMetric(name, value, machineId) {
     try {
         if (!metricBuffers.has(machineId)) metricBuffers.set(machineId, {});
-        oeeLogger.debug("Debug:Function updateMetric ");
-        oeeLogger.debug("-----------------------");
+        oeeLogger.info("Debug:Function updateMetric ");
+        oeeLogger.info("-----------------------");
         const buffer = metricBuffers.get(machineId);
-        if (buffer[name] !== value) {
-            buffer[name] = value;
-            await processMetrics(machineId, buffer);
-            oeeLogger.debug(`Updating metric ${name} for machineId ${machineId} with value: ${value}`);
-        } else {
-            console.log(`No change detected for ${name}.`);
-        }
+        oeeLogger.info(`Buffer:"${JSON.stringify(buffer)}"`);
+        buffer[name] = value;
+        await processMetrics(machineId, buffer);
+        oeeLogger.info(`Updating metric ${name} for machineId ${machineId} with value: ${value}`);
         logMetricBuffer();
     } catch (error) {
         errorLogger.error(`Error updating metric ${name} for machineId ${machineId}: ${error.message}`);
@@ -145,7 +141,8 @@ async function processMetrics(machineId, buffer) {
         
         if (!processOrderData || processOrderData.length === 0) throw new Error(`No active process order found for machine ${machineId}`);
         const processOrder = processOrderData[0];
-        let OEEData;        try {
+        let OEEData;        
+        try {
             OEEData = await loadDataAndPrepareOEE(machineId);
             validateOEEData(OEEData);
         } catch (error) {
@@ -172,11 +169,11 @@ async function processMetrics(machineId, buffer) {
 }
 
 function logMetricBuffer() {
-    oeeLogger.debug("Current state of metric buffers:");
+    oeeLogger.info("Current state of metric buffers:");
     metricBuffers.forEach((buffer, machineId) => {
-        oeeLogger.debug(`Machine ID: ${machineId}`);
+        oeeLogger.info(`Machine ID: ${machineId}`);
         Object.keys(buffer).forEach((metricName) => {
-            oeeLogger.debug(`  ${metricName}: ${buffer[metricName]}`);
+            oeeLogger.info(`  ${metricName}: ${buffer[metricName]}`);
         });
     });
 }
@@ -202,12 +199,28 @@ function validateInputData(totalTimes, machineId) {
 }
 
 async function getOEEMetrics(machineId) {
-    const buffer = metricBuffers.get(machineId);
-    if (!buffer) return null;
-    await processMetrics(machineId, buffer);
-    const calculator = oeeCalculators.get(machineId);
-    return calculator ? calculator.getMetrics(machineId) : null;
+    try {
+        const buffer = metricBuffers.get(machineId) || null;
+        oeeLogger.info(`Fetching OEE metrics for machineId ${machineId}: ${JSON.stringify(buffer)}`);
+        if (!buffer) {
+            oeeLogger.warn(`No buffer found for machineId ${machineId}`);
+            return null;
+        }
+
+        const calculator = oeeCalculators.get(machineId);
+        if (calculator) {
+            const metrics = calculator.getMetrics(machineId);
+            oeeLogger.info(`Metrics for machineId ${machineId}: ${JSON.stringify(metrics)}`);
+            return metrics || buffer; // Rückgriff auf Buffer bei fehlenden Metriken
+        }
+
+        return buffer; // Rückgabe der Bufferdaten, wenn kein Calculator vorhanden
+    } catch (error) {
+        errorLogger.error(`Error fetching OEE metrics for machine ${machineId}: ${error.stack}`);
+        return null;
+    }
 }
+
 
 function validateOEEData(OEEData) {
     if (!OEEData || !Array.isArray(OEEData.datasets) || !OEEData.labels) throw new Error("Invalid OEEData format.");

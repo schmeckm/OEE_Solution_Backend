@@ -4,82 +4,80 @@ const {
     dotenv,
     oeeLogger,
     errorLogger,
-    defaultLogger,
-    OEE_API_URL,
-    DATE_FORMAT,
-    TIMEZONE,
     apiClient
-} = require("../src/header"); // Stellen Sie sicher, dass der Pfad korrekt ist
+} = require("../src/header");
 
 /**
- * Aggregates microstop data by process order, filtered by ProcessOrderNumber or date range.
- * 
- * @param {string|null} processOrderNumber - The ProcessOrderNumber to filter by, or null to ignore.
- * @param {Date|null} startDate - The start date for filtering, or null to ignore start date.
- * @param {Date|null} endDate - The end date for filtering, or null to ignore end date.
- * @returns {Object} An object where the keys are reasons and the values are the aggregated differenz values, sorted by differenz in descending order.
+ * Aggregates microstop data by process order, filtered by ProcessOrderNumber.
+ *
+ * @param {string} processOrderNumber - The process order number to filter by.
+ * @returns {Object} Aggregated microstop data for the process order.
  */
 const aggregateMicrostopsByProcessOrder = async (processOrderNumber) => {
+    // Fetch all microstops
     const fetchMicrostops = async () => {
         try {
-            const response = await apiClient.get('/microstops');
+            const response = await apiClient.get("/microstops");
             return response.data;
         } catch (err) {
-            errorLogger.error('Failed to fetch microstops from API', { error: err.message });
-            throw err;
+            errorLogger.error("Failed to fetch microstops from API", { error: err.message });
+            throw new Error("Error fetching microstops data.");
         }
     };
 
+    // Fetch specific process order
     const fetchProcessOrder = async (processOrderNumber) => {
-        try {
-            const response = await apiClient.get(`/processorders/${processOrderNumber}`);
-            return response.data;
-        } catch (err) {
-            errorLogger.error(`Failed to fetch process order with number ${processOrderNumber} from API`, { error: err.message });
-            throw err;
-        }
-    };
-
+            try {
+                const response = await apiClient.get(`/processorders/${processOrderNumber}`);
+                oeeLogger.info(`Fetched process order ${processOrderNumber}`);
+                return response.data;
+            } catch (err) {
+                errorLogger.error(`Failed to fetch process order ${processOrderNumber}`, { error: err.message });
+                throw new Error("Error fetching process order data.");
+            }
+        };
+    
     const microstops = await fetchMicrostops();
-    const relevantProcessOrder = await fetchProcessOrder(processOrderNumber);
-    oeeLogger.info('Fetched microstops and process order from API', { microstops, relevantProcessOrder });
-
-    if (!relevantProcessOrder) {
-        throw new Error(`Process order with number ${processOrderNumber} not found`);
+    const processOrder = await fetchProcessOrder(processOrderNumber);
+    
+    // Ensure process order exists
+    if (!processOrder) {
+        throw new Error(`Process order ${processOrderNumber} not found.`);
     }
 
-    // Filter microstops for the relevant process order
-    const relevantMicrostops = microstops.filter(microstop => microstop.order_id === relevantProcessOrder.order_id);
-    oeeLogger.info(`Found ${relevantMicrostops.length} microstops for process order ${processOrderNumber}`);
+    // Filter microstops for the specific process order
+    const relevantMicrostops = microstops.filter(
+        (microstop) => microstop.order_id === processOrder.order_id
+    );
 
+    // If no microstops found, return a message
     if (relevantMicrostops.length === 0) {
-        return { message: "No microstops found" };
+        return { message: "No microstops found for the given process order." };
     }
 
-    // Aggregate and sort the microstops by reason and differenz
-    const orderAggregatedData = {};
-
-    relevantMicrostops.forEach(microstop => {
-        orderAggregatedData[microstop.reason] = (orderAggregatedData[microstop.reason] || 0) + microstop.differenz;
+    // Aggregate microstops by reason and calculate total differenz
+    const aggregatedData = {};
+    relevantMicrostops.forEach((microstop) => {
+        aggregatedData[microstop.reason] = (aggregatedData[microstop.reason] || 0) + microstop.differenz;
     });
 
-    const sortedAggregatedData = Object.entries(orderAggregatedData)
+    // Sort aggregated data by total differenz in descending order
+    const sortedAggregatedData = Object.entries(aggregatedData)
         .sort(([, a], [, b]) => b - a)
-        .map(([key, value]) => ({ reason: key, total: value }));
+        .map(([reason, total]) => ({ reason, total }));
 
-    const aggregatedData = {
+    // Return aggregated data with process order details
+    return {
         processOrderNumber: processOrderNumber,
-        materialNumber: relevantProcessOrder.materialnumber,
-        sapprocessordernumber: relevantProcessOrder.processordernumber,
-        materialDescription: relevantProcessOrder.materialdescription,
-        startDate: relevantProcessOrder.start_date,
-        endDate: relevantProcessOrder.end_date,
-        microstops: sortedAggregatedData
+        materialNumber: processOrder.materialnumber,
+        sapProcessOrderNumber: processOrder.processordernumber,
+        materialDescription: processOrder.materialdescription,
+        startDate: processOrder.start_date,
+        endDate: processOrder.end_date,
+        microstops: sortedAggregatedData,
     };
-
-    oeeLogger.info('Aggregated microstops data', { aggregatedData });
-
-    return aggregatedData;
 };
 
 module.exports = { aggregateMicrostopsByProcessOrder };
+
+  

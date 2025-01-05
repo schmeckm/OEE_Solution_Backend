@@ -1,20 +1,52 @@
 const express = require('express');
 const router = express.Router(); // Initialisiere den Router
-/**
- * @file microstops.js
- * @description This file contains the route handlers for microstops.
- * It imports the necessary services to load, create, update, and delete microstops.
- * 
- * @module routes/microstops
- */
 
+// Importiere die Microstop-Services
 const { 
   loadMicrostops, 
   loadMicrostopById, 
   createMicrostop, 
   updateMicrostop, 
   deleteMicrostop 
-} = require('../services/microstopService'); // Importiere die Microstop-Services
+} = require('../services/microstopService');
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Microstop:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Eindeutiger Identifikator des Microstops
+ *         startTime:
+ *           type: string
+ *           format: date-time
+ *           description: Startzeit des Microstops
+ *         endTime:
+ *           type: string
+ *           format: date-time
+ *           description: Endzeit des Microstops
+ *         reason:
+ *           type: string
+ *           description: Grund des Microstops
+ *     MicrostopInput:
+ *       type: object
+ *       properties:
+ *         startTime:
+ *           type: string
+ *           format: date-time
+ *           description: Startzeit des neuen Microstops
+ *         endTime:
+ *           type: string
+ *           format: date-time
+ *           description: Endzeit des neuen Microstops
+ *         reason:
+ *           type: string
+ *           description: Grund des neuen Microstops
+ */
+
 
 /**
  * @swagger
@@ -23,6 +55,7 @@ const {
  *   description: API zur Verwaltung der Microstop-Daten
  */
 
+// GET Route: Alle Microstops abrufen
 /**
  * @swagger
  * /microstops:
@@ -41,14 +74,15 @@ const {
  */
 router.get("/", async (req, res) => {
   try {
-    const microstops = await loadMicrostops(); // Abrufen der Microstop-Daten
-    res.status(200).json(microstops); // Rückgabe der Microstop-Daten
+    const microstops = await loadMicrostops();
+    res.status(200).json(microstops);
   } catch (error) {
     console.error("Fehler beim Abrufen der Microstop-Daten:", error);
     res.status(500).json({ message: "Fehler beim Abrufen der Microstop-Daten" });
   }
 });
 
+// GET Route: Einen Microstop nach ID abrufen
 /**
  * @swagger
  * /microstops/{id}:
@@ -75,16 +109,17 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const microstop = await loadMicrostopById(id); // Abrufen des Microstop anhand der ID
+    const microstop = await loadMicrostopById(id);
     if (!microstop) {
       return res.status(404).json({ message: "Microstop nicht gefunden" });
     }
-    res.status(200).json(microstop); // Rückgabe des gefundenen Microstops
+    res.status(200).json(microstop);
   } catch (error) {
     res.status(500).json({ message: "Fehler beim Abrufen des Microstops" });
   }
 });
 
+// POST Route: Einen neuen Microstop hinzufügen
 /**
  * @swagger
  * /microstops:
@@ -109,14 +144,15 @@ router.get("/:id", async (req, res) => {
  */
 router.post("/", async (req, res) => {
   try {
-    const microstopData = req.body; // Daten aus dem Request-Body
-    const newMicrostop = await createMicrostop(microstopData); // Erstellen eines neuen Microstops
-    res.status(201).json(newMicrostop); // Rückgabe des erstellten Microstops
+    const microstopData = req.body;
+    const newMicrostop = await createMicrostop(microstopData);
+    res.status(201).json(newMicrostop);
   } catch (error) {
     res.status(400).json({ message: "Fehler beim Erstellen des Microstops" });
   }
 });
 
+// PUT Route: Einen bestehenden Microstop aktualisieren
 /**
  * @swagger
  * /microstops/{id}:
@@ -148,15 +184,19 @@ router.post("/", async (req, res) => {
  */
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const updatedData = req.body; // Die aktualisierten Daten
+  const updatedData = req.body;
   try {
-    const updatedMicrostop = await updateMicrostop(id, updatedData); // Aktualisieren des Microstops
-    res.status(200).json(updatedMicrostop); // Rückgabe des aktualisierten Microstops
+    const updatedMicrostop = await updateMicrostop(id, updatedData);
+    if (!updatedMicrostop) {
+      return res.status(404).json({ message: "Microstop nicht gefunden" });
+    }
+    res.status(200).json(updatedMicrostop);
   } catch (error) {
     res.status(400).json({ message: "Fehler beim Aktualisieren des Microstops" });
   }
 });
 
+// DELETE Route: Einen Microstop löschen
 /**
  * @swagger
  * /microstops/{id}:
@@ -179,9 +219,9 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await deleteMicrostop(id); // Löschen des Microstops
+    const result = await deleteMicrostop(id);
     if (result) {
-      res.status(204).send(); // Erfolgreiches Löschen
+      res.status(204).send();
     } else {
       res.status(404).json({ message: "Microstop nicht gefunden" });
     }

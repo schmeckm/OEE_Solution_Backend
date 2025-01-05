@@ -1,28 +1,23 @@
-const express = require('express');
-const Joi = require('joi');
-const sanitizeHtml = require('sanitize-html');
-const { getOEEMetrics } = require('../src/oeeProcessor'); // Funktion zum Lesen der Buffer-Daten
+const express = require("express");
+const Joi = require("joi");
+const { getOEEMetrics } = require("../src/oeeProcessor");
 const router = express.Router();
 
-// Zentralisiertes Fehlerhandling
+// Centralized error handling
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
-// Eingabevalidierung und -säuberung
 /**
- * Validates and sanitizes a machine ID.
+ * Validates a machine ID.
  *
- * This function uses a Joi schema to validate that the provided machine ID is a string and is required.
- * If the validation fails, an error is thrown with a message indicating the invalid machine ID.
- * If the validation passes, the machine ID is sanitized using the sanitizeHtml function to remove any potentially harmful HTML.
- *
- * @param {string} machineId - The machine ID to validate and sanitize.
- * @returns {string} - The sanitized machine ID.
- * @throws {Error} - Throws an error if the machine ID is invalid.
+ * @param {string} machineId - The machine ID to validate.
+ * @returns {string} - The validated machine ID.
+ * @throws {Error} - If validation fails.
  */
-const validateAndSanitizeMachineId = (machineId) => {
-  // Joi-Schema zur Validierung der machineId
-  const schema = Joi.string().required();
+const validateMachineId = (machineId) => {
+  const schema = Joi.string()
+    .guid({ version: ["uuidv4"] })
+    .required(); // Enforce UUID v4 format
 
   const { error, value } = schema.validate(machineId);
 
@@ -30,15 +25,14 @@ const validateAndSanitizeMachineId = (machineId) => {
     throw new Error(`Ungültige Maschinen-ID: ${error.details[0].message}`);
   }
 
-  // Eingabesäuberung
-  return sanitizeHtml(value);
+  return value;
 };
 
 /**
  * @swagger
  * tags:
  *   name: Realtime OEE by Line
- *   description: API zum Lesen der OEE-Daten einer Linie
+ *   description: API for retrieving OEE metrics for a machine
  */
 
 /**
@@ -47,18 +41,19 @@ const validateAndSanitizeMachineId = (machineId) => {
  *   get:
  *     tags:
  *       - Realtime OEE by Line
- *     summary: Aktuelle OEE-Metriken für eine Maschine abrufen
- *     description: Ruft die aktuellen OEE-Metriken aus dem Puffer für die angegebene Maschine ab.
+ *     summary: Retrieve current OEE metrics for a machine
+ *     description: Fetch the current OEE metrics from the buffer for the given machine.
  *     parameters:
  *       - in: path
  *         name: machineId
  *         required: true
  *         schema:
  *           type: string
- *         description: Die ID der Maschine.
+ *           format: uuid
+ *         description: The unique ID of the machine.
  *     responses:
  *       200:
- *         description: Ein JSON-Objekt mit den OEE-Metriken.
+ *         description: JSON object containing OEE metrics.
  *         content:
  *           application/json:
  *             schema:
@@ -66,46 +61,59 @@ const validateAndSanitizeMachineId = (machineId) => {
  *               properties:
  *                 oee:
  *                   type: number
- *                   description: Der berechnete OEE-Wert
+ *                   description: Calculated OEE value.
  *       400:
- *         description: Ungültige Maschinen-ID.
+ *         description: Invalid machine ID.
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
  *       404:
- *         description: OEE-Daten der Maschine nicht gefunden.
+ *         description: OEE metrics not found for the machine.
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
  *       500:
- *         description: Interner Serverfehler.
+ *         description: Internal server error.
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
  */
-
 router.get(
-  '/:machineId',
+  "/:machineId",
   asyncHandler(async (req, res) => {
     try {
-      const machineId = validateAndSanitizeMachineId(req.params.machineId);
+      const machineId = validateMachineId(req.params.machineId); // Validate machine ID
 
-      const metrics = await getOEEMetrics(machineId); // Rufe die OEE-Daten ab
+      const metrics = await getOEEMetrics(machineId); // Fetch OEE metrics
 
       if (metrics) {
-        res.json(metrics); // Rückgabe der OEE-Daten
+        res.json(metrics); // Return OEE metrics
       } else {
-        res.status(404).json({ message: 'OEE-Daten der Maschine nicht gefunden.' });
+        res
+          .status(404)
+          .json({ message: "OEE-Daten der Maschine nicht gefunden." });
       }
     } catch (error) {
-      if (error.message.startsWith('Ungültige Maschinen-ID')) {
+      if (error.message.startsWith("Ungültige Maschinen-ID")) {
         res.status(400).json({ message: error.message });
       } else {
-        console.error(`Fehler beim Abrufen der OEE-Daten für Maschine ${req.params.machineId}:`, error);
-        res.status(500).json({ message: 'Interner Serverfehler' });
+        console.error(
+          `Fehler beim Abrufen der OEE-Daten für Maschine ${req.params.machineId}:`,
+          error
+        );
+        res.status(500).json({ message: "Interner Serverfehler" });
       }
     }
   })

@@ -1,31 +1,45 @@
 const express = require("express");
-const { v4: uuidv4 } = require("uuid");
-const moment = require("moment-timezone");
-
-const { loadPlannedDowntime, loadPlannedDowntimeById, createPlannedDowntime, updatePlannedDowntime, deletePlannedDowntime } = require("../services/plannedDowntimeService");
-
 const router = express.Router();
-
-// Fehlerbehandlung
+const { loadPlannedDowntime, loadPlannedDowntimeById, createPlannedDowntime, updatePlannedDowntime, deletePlannedDowntime } = require("../services/plannedDowntimeService");
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
-// Utility-Funktion zur Berechnung der Dauer in Minuten
-const calculateDurationInMinutes = (start, end) => {
-  const startTime = moment(start);
-  const endTime = moment(end);
-  return endTime.diff(startTime, "minutes");
-};
-
-// Utility-Funktion zur Datumsformatierung
-const formatDate = (date) =>
-  date ? moment(date).format("YYYY-MM-DDTHH:mm:ss") : null;
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     PlannedDowntime:
+ *       type: object
+ *       required:
+ *         - id
+ *         - plannedOrder_ID
+ *         - Start
+ *         - End
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: The unique identifier for the planned downtime.
+ *         plannedOrder_ID:
+ *           type: string
+ *           description: Identifier of the associated planned order.
+ *         Start:
+ *           type: string
+ *           format: date-time
+ *           description: Start time of the planned downtime.
+ *         End:
+ *           type: string
+ *           format: date-time
+ *           description: End time of the planned downtime.
+ *         Description:
+ *           type: string
+ *           description: Description of the planned downtime.
+ */
 
 /**
  * @swagger
  * tags:
  *   name: Planned Downtime
- *   description: API zur Verwaltung geplanter Stillstandszeiten
+ *   description: Management of planned downtimes.
  */
 
 /**
@@ -34,7 +48,6 @@ const formatDate = (date) =>
  *   get:
  *     summary: Get all planned downtimes
  *     tags: [Planned Downtime]
- *     description: Retrieve a list of all planned downtimes.
  *     responses:
  *       200:
  *         description: A list of planned downtimes.
@@ -45,13 +58,11 @@ const formatDate = (date) =>
  *               items:
  *                 $ref: '#/components/schemas/PlannedDowntime'
  */
-router.get(
-  "/",
-  asyncHandler(async (req, res) => {
+
+router.get("/", asyncHandler(async (req, res) => {
     const data = await loadPlannedDowntime();
     res.json(data);
-  })
-);
+}));
 
 /**
  * @swagger
@@ -59,14 +70,13 @@ router.get(
  *   get:
  *     summary: Get a planned downtime by ID
  *     tags: [Planned Downtime]
- *     description: Retrieve a planned downtime by its ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The planned downtime UUID.
+ *         description: The ID of the planned downtime to retrieve.
  *     responses:
  *       200:
  *         description: The planned downtime with the specified ID.
@@ -77,17 +87,15 @@ router.get(
  *       404:
  *         description: Planned downtime not found.
  */
-router.get(
-  "/:id",
-  asyncHandler(async (req, res) => {
+
+router.get("/:id", asyncHandler(async (req, res) => {
     const { id } = req.params;
     const plannedDowntime = await loadPlannedDowntimeById(id);
     if (!plannedDowntime) {
-      return res.status(404).json({ message: `Planned downtime with ID ${id} not found` });
+        return res.status(404).json({ message: "Planned downtime not found" });
     }
     res.json(plannedDowntime);
-  })
-);
+}));
 
 /**
  * @swagger
@@ -95,7 +103,6 @@ router.get(
  *   post:
  *     summary: Create a new planned downtime
  *     tags: [Planned Downtime]
- *     description: Create a new planned downtime.
  *     requestBody:
  *       required: true
  *       content:
@@ -110,22 +117,14 @@ router.get(
  *             schema:
  *               $ref: '#/components/schemas/PlannedDowntime'
  *       500:
- *         description: Error creating planned downtime
+ *         description: Error creating planned downtime.
  */
-router.post(
-  "/",
-  asyncHandler(async (req, res) => {
-    const newData = {
-      ...req.body,
-      plannedOrder_ID: uuidv4(),
-      Start: formatDate(req.body.Start),
-      End: formatDate(req.body.End),
-    };
 
+router.post("/", asyncHandler(async (req, res) => {
+    const newData = {...req.body};
     const createdDowntime = await createPlannedDowntime(newData);
     res.status(201).json(createdDowntime);
-  })
-);
+}));
 
 /**
  * @swagger
@@ -133,14 +132,13 @@ router.post(
  *   put:
  *     summary: Update an existing planned downtime
  *     tags: [Planned Downtime]
- *     description: Update an existing planned downtime by ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The planned downtime UUID.
+ *         description: The ID of the planned downtime to update.
  *     requestBody:
  *       required: true
  *       content:
@@ -157,25 +155,18 @@ router.post(
  *       404:
  *         description: Planned downtime not found.
  *       500:
- *         description: Error updating planned downtime
+ *         description: Error updating planned downtime.
  */
-router.put(
-  "/:id",
-  asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const updatedData = {
-      ...req.body,
-      Start: formatDate(req.body.Start),
-      End: formatDate(req.body.End),
-    };
 
+router.put("/:id", asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const updatedData = {...req.body};
     const updatedDowntime = await updatePlannedDowntime(id, updatedData);
     if (!updatedDowntime) {
-      return res.status(404).json({ message: `Planned downtime with ID ${id} not found` });
+        return res.status(404).json({ message: "Planned downtime not found" });
     }
     res.json(updatedDowntime);
-  })
-);
+}));
 
 /**
  * @swagger
@@ -183,32 +174,29 @@ router.put(
  *   delete:
  *     summary: Delete a planned downtime
  *     tags: [Planned Downtime]
- *     description: Delete a planned downtime by ID.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: The planned downtime UUID.
+ *         description: The ID of the planned downtime to delete.
  *     responses:
  *       204:
  *         description: Planned downtime deleted successfully.
  *       404:
  *         description: Planned downtime not found.
  *       500:
- *         description: Error deleting planned downtime
+ *         description: Error deleting planned downtime.
  */
-router.delete(
-  "/:id",
-  asyncHandler(async (req, res) => {
+
+router.delete("/:id", asyncHandler(async (req, res) => {
     const { id } = req.params;
     const result = await deletePlannedDowntime(id);
     if (!result) {
-      return res.status(404).json({ message: `Planned downtime with ID ${id} not found` });
+        return res.status(404).json({ message: "Planned downtime not found" });
     }
     res.status(204).send();
-  })
-);
+}));
 
 module.exports = router;

@@ -27,6 +27,46 @@ const asyncHandler = (fn) => (req, res, next) =>
 
 /**
  * @swagger
+ * components:
+ *   schemas:
+ *     ProcessOrder:
+ *       type: object
+ *       required:
+ *         - order_id
+ *         - machine_id
+ *         - start_date
+ *         - end_date
+ *       properties:
+ *         order_id:
+ *           type: string
+ *           description: The unique identifier for the process order.
+ *         machine_id:
+ *           type: string
+ *           description: The identifier for the machine related to the order.
+ *         start_date:
+ *           type: string
+ *           format: date-time
+ *           description: Start date and time of the process.
+ *         end_date:
+ *           type: string
+ *           format: date-time
+ *           description: End date and time of the process.
+ *         actualprocessorderstart:
+ *           type: string
+ *           format: date-time
+ *           description: Actual start date and time of the process.
+ *         actualprocessorderend:
+ *           type: string
+ *           format: date-time
+ *           description: Actual end date and time of the process.
+ *         status:
+ *           type: string
+ *           description: Current status of the process order.
+ */
+
+
+/**
+ * @swagger
  * tags:
  *   name: Process Orders
  *   description: API for managing process orders
@@ -228,7 +268,7 @@ function formatProcessOrderDates(orders) {
 router.get(
   "/:id",
   asyncHandler(async (req, res) => {
-    const { id } = req.params;  // Hole die ID aus den URL-Parametern
+    const { id } = req.params; // Retrieve ID from request parameters
 
     try {
       const processOrder = await loadProcessOrderById(id);
@@ -237,20 +277,28 @@ router.get(
         return res.status(404).json({ message: `Process order with ID ${id} not found` });
       }
 
-      // Gebe nur die relevanten Werte zurück
+      // Validate if necessary fields exist
+      if (!processOrder.start_date) {
+        return res.status(400).json({ message: `Invalid process order data for ID ${id}` });
+      }
+
+      // Return process order with formatted dates
       res.json({
-        ...processOrder.dataValues,
-        start_date: formatDate(processOrder.dataValues.start_date),
-        end_date: formatDate(processOrder.dataValues.end_date),
-        actualprocessorderstart: formatDate(processOrder.dataValues.actualprocessorderstart),
-        actualprocessorderend: formatDate(processOrder.dataValues.actualprocessorderend),
+        ...processOrder,
+        start_date: formatDate(processOrder.start_date),
+        end_date: formatDate(processOrder.end_date),
+        actualprocessorderstart: formatDate(processOrder.actualprocessorderstart),
+        actualprocessorderend: formatDate(processOrder.actualprocessorderend),
       });
     } catch (error) {
       console.error(`Error fetching process order with ID ${id}: ${error.message}`);
-      res.status(500).json({ message: `Error fetching process order with ID ${id}: ${error.message}` });
+      res.status(500).json({
+        message: `Error fetching process order with ID ${id}: ${error.message}`,
+      });
     }
   })
 );
+
 
 /**
  * @swagger

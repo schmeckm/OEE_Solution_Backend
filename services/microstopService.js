@@ -1,126 +1,236 @@
-const { Microstop } = require('../models'); // Import the Microstop model
-const moment = require('moment-timezone'); // Use Moment.js for date calculations
-const { dateSettings } = require("../config/config"); // Import dateSettings (timezone and format)
+const { Microstop } = require('../models'); // Sequelize-Modell "Microstop"
+const moment = require('moment-timezone');
+const { dateSettings } = require("../config/config"); // Enthält z. B. { timezone, dateFormat }
 
-// Helper function to format date fields after loading
-const formatDates = (microstop) => {
-  const { timezone, dateFormat } = dateSettings;
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Microstop:
+ *       type: object
+ *       required:
+ *         - id
+ *         - start_date
+ *         - end_date
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: The unique identifier for the microstop.
+ *         start_date:
+ *           type: string
+ *           format: date-time
+ *           description: The start time of the microstop in UTC format.
+ *         end_date:
+ *           type: string
+ *           format: date-time
+ *           description: The end time of the microstop in UTC format.
+ *         differenz:
+ *           type: integer
+ *           description: Duration in minutes between start and end time.
+ */
+
+/**
+ * @swagger
+ * tags:
+ *   name: Microstop
+ *   description: Management of microstops
+ */
+
+// Hilfsfunktion: Datumsfelder ins gewünschte Ausgabeformat (UTC-String) konvertieren
+function formatDatesForResponse(microstop) {
+  if (!microstop) return null;
+  const { dateFormat } = dateSettings;
   return {
     ...microstop,
-    Start: moment(microstop.Start).tz(timezone).format(dateFormat),
-    End: moment(microstop.End).tz(timezone).format(dateFormat),
+    start_date: microstop.start_date ? moment.utc(microstop.start_date).format(dateFormat) : null,
+    end_date: microstop.end_date ? moment.utc(microstop.end_date).format(dateFormat) : null,
   };
-};
+}
 
-// Helper function to format date fields before saving
-const formatDatesBeforeSave = (microstop) => {
-  const { timezone } = dateSettings;
+// Hilfsfunktion: Datumsfelder in UTC-Objekte für DB-Speicherung
+function parseDatesForDB(microstop) {
+  if (!microstop) return null;
   return {
     ...microstop,
-    Start: moment.tz(microstop.Start, timezone).utc().toDate(),
-    End: moment.tz(microstop.End, timezone).utc().toDate(),
+    start_date: microstop.start_date ? moment.utc(microstop.start_date).toDate() : null,
+    end_date: microstop.end_date ? moment.utc(microstop.end_date).toDate() : null,
   };
-};
+}
 
-// General error handler
-const handleError = (action, error) => {
+// Fehlerbehandlung
+function handleError(action, error) {
   console.error(`Error ${action}: ${error.message}`);
   throw new Error(`Failed to ${action} microstop: ${error.message}`);
-};
+}
 
 /**
- * Creates a new microstop record.
- * @param {Object} data - The data for the new microstop record.
- * @returns {Promise<Object>} The created microstop record.
+ * @swagger
+ * /microstops:
+ *   get:
+ *     summary: Retrieve a list of all microstops
+ *     tags: [Microstop]
+ *     responses:
+ *       200:
+ *         description: A list of microstops.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Microstop'
  */
-const createMicrostop = async (data) => {
+async function loadMicrostops() {
   try {
-    const formattedData = formatDatesBeforeSave(data);
-    const newMicrostop = await Microstop.create(formattedData);
-    return formatDates(newMicrostop.get()); // Format and return the created microstop
-  } catch (error) {
-    handleError('create', error);
-  }
-};
-
-/**
- * Updates an existing microstop record.
- * @param {string} id - The UUID of the microstop to update.
- * @param {Object} data - The updated data.
- * @returns {Promise<Object>} The updated microstop record.
- */
-const updateMicrostop = async (id, data) => {
-  try {
-    const microstop = await Microstop.findByPk(id);
-    if (!microstop) throw new Error('Microstop not found');
-
-    // Format date fields before update
-    const formattedData = formatDatesBeforeSave(data);
-
-    if (formattedData.End) {
-      const start = moment(microstop.Start); // The original start date of the microstop
-      const end = moment(formattedData.End); // The new end date being set in the update
-      formattedData.Differenz = end.diff(start, 'minutes'); // Calculate the difference in minutes
-    }
-
-    await microstop.update(formattedData);
-    return formatDates(microstop); // Return the updated microstop after formatting
-  } catch (error) {
-    handleError('update', error);
-  }
-};
-
-/**
- * Fetches all microstop records.
- * @returns {Promise<Array>} A list of microstop records.
- */
-const loadMicrostops = async () => {
-  try {
-    const data = await Microstop.findAll(); // Fetch all microstop records from the DB
+    const data = await Microstop.findAll();
     if (!data || data.length === 0) {
       return [];
     }
-    // Extract and format the dataValues of each record before returning
-    return data.map(record => formatDates(record.dataValues));
+    return data.map(record => formatDatesForResponse(record.get()));
   } catch (error) {
     handleError('load all', error);
   }
-};
+}
 
 /**
- * Fetches a microstop record by ID.
- * @param {string} id - The UUID of the microstop.
- * @returns {Promise<Object|null>} The microstop record or null if not found.
+ * @swagger
+ * /microstops/{id}:
+ *   get:
+ *     summary: Retrieve a microstop by its ID
+ *     tags: [Microstop]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the microstop to retrieve.
+ *     responses:
+ *       200:
+ *         description: Details of a microstop.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Microstop'
+ *       404:
+ *         description: Microstop not found.
  */
-const loadMicrostopById = async (id) => {
+async function loadMicrostopById(id) {
   try {
     const microstop = await Microstop.findByPk(id);
     if (!microstop) {
       console.log(`No microstop found with ID ${id}.`);
       return null;
     }
-    return formatDates(microstop); // Return the formatted microstop
+    return formatDatesForResponse(microstop.get());
   } catch (error) {
-    handleError(`load by ID ${id}`, error);
+    handleError('load by ID', error);
   }
-};
+}
 
 /**
- * Deletes a microstop record.
- * @param {string} id - The UUID of the microstop to delete.
- * @returns {Promise<boolean>} True if the microstop was successfully deleted.
+ * @swagger
+ * /microstops:
+ *   post:
+ *     summary: Create a new microstop
+ *     tags: [Microstop]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Microstop'
+ *     responses:
+ *       201:
+ *         description: Microstop created successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Microstop'
+ *       400:
+ *         description: Invalid input.
  */
-const deleteMicrostop = async (id) => {
+async function createMicrostop(data) {
+  try {
+    const formattedData = parseDatesForDB(data);
+    const newMicrostop = await Microstop.create(formattedData);
+    return formatDatesForResponse(newMicrostop.get());
+  } catch (error) {
+    handleError('create', error);
+  }
+}
+
+/**
+ * @swagger
+ * /microstops/{id}:
+ *   put:
+ *     summary: Update a microstop
+ *     tags: [Microstop]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the microstop to update.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Microstop'
+ *     responses:
+ *       200:
+ *         description: Microstop updated successfully.
+ *       404:
+ *         description: Microstop not found.
+ *       400:
+ *         description: Invalid input.
+ */
+async function updateMicrostop(id, data) {
   try {
     const microstop = await Microstop.findByPk(id);
-    if (!microstop) throw new Error('Microstop not found');
+    if (!microstop) {
+      throw new Error('Microstop not found');
+    }
+    const formattedData = parseDatesForDB(data);
+    await microstop.update(formattedData);
+    return formatDatesForResponse(microstop.get());
+  } catch (error) {
+    handleError('update', error);
+  }
+}
 
+/**
+ * @swagger
+ * /microstops/{id}:
+ *   delete:
+ *     summary: Delete a microstop
+ *     tags: [Microstop]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the microstop to delete.
+ *     responses:
+ *       204:
+ *         description: Microstop deleted successfully.
+ *       404:
+ *         description: Microstop not found.
+ */
+async function deleteMicrostop(id) {
+  try {
+    const microstop = await Microstop.findByPk(id);
+    if (!microstop) {
+      throw new Error(`Microstop not found for ID ${id}`);
+    }
     await microstop.destroy();
-    return true; // Return true if the microstop was successfully deleted
+    return true;
   } catch (error) {
     handleError('delete', error);
   }
-};
+}
 
 module.exports = {
   createMicrostop,

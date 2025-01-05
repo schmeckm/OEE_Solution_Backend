@@ -2,11 +2,9 @@ const express = require("express");
 const router = express.Router();
 const Joi = require("joi");
 const sanitizeHtml = require("sanitize-html");
-const moment = require("moment-timezone"); // Stellen Sie sicher, dass moment-timezone installiert ist
+const moment = require("moment-timezone");
 
-const {
-  aggregateMicrostopsByMachine,
-} = require("../services/microstopAggregationByMachine");
+const { aggregateMicrostopsByMachine } = require("../services/microstopAggregationByMachine");
 const { defaultLogger, errorLogger } = require("../utils/logger");
 
 /**
@@ -18,35 +16,61 @@ const { defaultLogger, errorLogger } = require("../utils/logger");
 
 /**
  * @swagger
+ * components:
+ *   schemas:
+ *     AggregateMicrostopResult:
+ *       type: object
+ *       properties:
+ *         machine_id:
+ *           type: string
+ *           description: Die ID der Maschine, deren Daten aggregiert werden.
+ *         microstops:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 description: Grund für den Microstop.
+ *               total:
+ *                 type: integer
+ *                 description: Gesamtdauer des Microstops.
+ */
+
+/**
+ * @swagger
  * /microstop-aggregation/machine:
  *   get:
  *     summary: Aggregierte Microstop-Daten abrufen, optional gefiltert nach Maschinen-ID und Datumsbereich
  *     tags: [Microstop Aggregation]
- *     description: Ruft eine Aggregation von Microstop-Daten ab, optional gefiltert nach einer bestimmten Maschinen-ID und einem Datumsbereich.
  *     parameters:
  *       - in: query
  *         name: machine_id
  *         required: false
- *         description: Die eindeutige Kennung der Maschine, nach der die Microstops gefiltert werden sollen.
  *         schema:
  *           type: string
+ *         description: Die eindeutige Kennung der Maschine, nach der die Microstops gefiltert werden sollen.
  *       - in: query
  *         name: start
  *         required: false
- *         description: Startdatum für die Filterung der Microstops, im ISO 8601 Format.
  *         schema:
  *           type: string
  *           format: date-time
+ *         description: Startdatum für die Filterung der Microstops, im ISO 8601 Format.
  *       - in: query
  *         name: end
  *         required: false
- *         description: Enddatum für die Filterung der Microstops, im ISO 8601 Format.
  *         schema:
  *           type: string
  *           format: date-time
+ *         description: Enddatum für die Filterung der Microstops, im ISO 8601 Format.
  *     responses:
  *       200:
  *         description: Erfolgreich aggregierte Microstop-Daten abgerufen.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AggregateMicrostopResult'
  *       400:
  *         description: Ungültige Abfrageparameter.
  *       404:
@@ -60,16 +84,6 @@ const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 // Eingabevalidierung und -säuberung
-/**
- * Validates and sanitizes the query parameters.
- *
- * @param {Object} query - The query parameters to validate and sanitize.
- * @param {string} [query.machine_id] - The ID of the machine (optional).
- * @param {string} [query.start] - The start date in ISO format (optional).
- * @param {string} [query.end] - The end date in ISO format (optional).
- * @returns {Object} The validated and sanitized query parameters.
- * @throws {Error} If the query parameters are invalid.
- */
 const validateAndSanitizeQuery = (query) => {
   const schema = Joi.object({
     machine_id: Joi.string().optional(),
@@ -83,7 +97,6 @@ const validateAndSanitizeQuery = (query) => {
     throw new Error(`Ungültige Abfrageparameter: ${error.details[0].message}`);
   }
 
-  // Eingaben säubern
   if (value.machine_id) {
     value.machine_id = sanitizeHtml(value.machine_id);
   }
@@ -106,7 +119,7 @@ router.get(
         endDate
       );
 
-      if (!result || Object.keys(result).length === 0) {
+      if (!result || (result.microstops && result.microstops.length === 0)) {
         return res
           .status(404)
           .json({ message: "Keine Daten für die gegebenen Filter gefunden." });

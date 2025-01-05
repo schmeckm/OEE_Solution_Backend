@@ -1,24 +1,19 @@
-const express = require('express');
-const moment = require('moment-timezone'); // Ensure moment-timezone is used for consistency
-const Joi = require('joi');
-const sanitizeHtml = require('sanitize-html');
-
-const { aggregateMicrostopsByProcessOrder } = require('../services/microstopAggregationByProcessOrder');
-
+const express = require("express");
+const Joi = require("joi");
+const sanitizeHtml = require("sanitize-html");
+const { aggregateMicrostopsByProcessOrder } = require("../services/microstopAggregationByProcessOrder");
 const router = express.Router();
 
-// Centralized error handling middleware
-const asyncHandler = (fn) => (req, res, next) =>
-  Promise.resolve(fn(req, res, next)).catch(next);
-
-// Input validation and sanitization function
+/**
+ * Validates and sanitizes query parameters.
+ */
 const validateAndSanitizeQuery = (query) => {
   // Joi schema for query parameters
   const schema = Joi.object({
     processOrderNumber: Joi.string().optional(),
     startDate: Joi.date().iso().optional(),
     endDate: Joi.date().iso().optional(),
-  }).or('processOrderNumber', 'startDate'); // At least one must be provided
+  }).or('processOrderNumber', 'startDate'); // Require at least one of these
 
   // Validate input data
   const { error, value } = schema.validate(query);
@@ -35,15 +30,13 @@ const validateAndSanitizeQuery = (query) => {
   return value;
 };
 
+
 /**
  * @swagger
  * tags:
  *   name: Microstop Aggregation
- *   description: API for aggregating microstops data
- */
-
-/**
- * @swagger
+ *   description: API for aggregating microstop data
+ *
  * /microstop-aggregation/process-order:
  *   get:
  *     summary: Get aggregated microstops by process order
@@ -92,32 +85,36 @@ const validateAndSanitizeQuery = (query) => {
  *                 message:
  *                   type: string
  */
+
+
+
+/**
+ * API to fetch aggregated microstops by process order.
+ */
 router.get(
-  '/',
-  asyncHandler(async (req, res) => {
-    try {
-      // Validate and sanitize query parameters
-      const { processOrderNumber} = validateAndSanitizeQuery(req.query);
+    "/",
+    async (req, res) => {
+        try {
+            const { processOrderNumber } = validateAndSanitizeQuery(req.query);
 
-      // Call the service function
-      const aggregatedData = await aggregateMicrostopsByProcessOrder(
-        processOrderNumber
-      );
+            // Call the service function
+            const aggregatedData = await aggregateMicrostopsByProcessOrder(processOrderNumber);
 
-      if (!aggregatedData || Object.keys(aggregatedData).length === 0) {
-        return res.status(404).json({ message: 'No microstops found' });
-      }
-
-      res.json(aggregatedData);
-    } catch (error) {
-      if (error.message.startsWith('Invalid query parameters')) {
-        res.status(400).json({ message: error.message });
-      } else {
-        console.error('[ERROR]', error);
-        res.status(500).json({ message: 'Server error' });
-      }
+            res.json(aggregatedData);
+        } catch (error) {
+            if (error.message.startsWith("Invalid query parameters")) {
+                res.status(400).json({ message: error.message });
+            } else if (error.message.includes("not found")) {
+                res.status(404).json({ message: error.message });
+            } else {
+                console.error("[ERROR]", error);
+                res.status(500).json({ message: "Internal server error" });
+            }
+        }
     }
-  })
 );
 
 module.exports = router;
+
+
+

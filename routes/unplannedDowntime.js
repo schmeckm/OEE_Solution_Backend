@@ -10,33 +10,49 @@ const router = express.Router();
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
-// Utility-Funktion zur Berechnung der Dauer in Minuten
-const calculateDurationInMinutes = (start, end) => {
-  const startTime = moment(start);
-  const endTime = moment(end);
-  return endTime.diff(startTime, "minutes");
-};
-
-// Utility-Funktion zur Datumsformatierung
-const formatDate = (date) =>
-  date ? moment(date).format("YYYY-MM-DDTHH:mm:ss") : null;
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     UnplannedDowntime:
+ *       type: object
+ *       required:
+ *         - id
+ *         - Start
+ *         - End
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Eindeutiger Identifikator der ungeplanten Stillstandszeit.
+ *         Start:
+ *           type: string
+ *           format: date-time
+ *           description: Startzeit der ungeplanten Stillstandszeit.
+ *         End:
+ *           type: string
+ *           format: date-time
+ *           description: Endzeit der ungeplanten Stillstandszeit.
+ *         Description:
+ *           type: string
+ *           description: Beschreibung der ungeplanten Stillstandszeit.
+ */
 
 /**
  * @swagger
  * tags:
  *   name: Unplanned Downtime
- *   description: API zur Verwaltung ungeplanter Stillstandszeiten
+ *   description: Management of unplanned downtimes.
  */
 
 /**
  * @swagger
- * /unplanneddowntime:
+ * /unplannedDowntime:
  *   get:
- *     summary: Alle ungeplanten Stillstandszeiten abrufen
+ *     summary: Get all unplanned downtimes
  *     tags: [Unplanned Downtime]
  *     responses:
  *       200:
- *         description: Eine Liste von ungeplanten Stillstandszeiten
+ *         description: A list of unplanned downtimes.
  *         content:
  *           application/json:
  *             schema:
@@ -45,63 +61,15 @@ const formatDate = (date) =>
  *                 $ref: '#/components/schemas/UnplannedDowntime'
  */
 router.get("/", asyncHandler(async (req, res) => {
-  try {
-    const data = await loadUnplannedDowntime();
-    res.json(data);
-  } catch (error) {
-    console.error("Fehler beim Laden der ungeplanten Stillstandszeiten:", error.stack);
-    res.status(500).json({ message: "Fehler beim Laden der ungeplanten Stillstandszeiten", error: error.stack });
-  }
+  const data = await loadUnplannedDowntime();
+  res.json(data);
 }));
 
 /**
  * @swagger
- * /unplanneddowntime:
- *   post:
- *     summary: Eine neue ungeplante Stillstandszeit hinzufügen
- *     tags: [Unplanned Downtime]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/UnplannedDowntimeInput'
- *     responses:
- *       201:
- *         description: Ungeplante Stillstandszeit erfolgreich hinzugefügt
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/UnplannedDowntime'
- *       400:
- *         description: Ungültige Eingabedaten
- */
-router.post("/", asyncHandler(async (req, res) => {
-  try {
-    // Eingabedaten validieren und säubern
-    const sanitizedData = req.body;
-
-    // ID generieren
-    sanitizedData.ID = uuidv4();
-    sanitizedData.Start = formatDate(sanitizedData.Start);
-    sanitizedData.End = formatDate(sanitizedData.End);
-    sanitizedData.durationInMinutes = calculateDurationInMinutes(sanitizedData.Start, sanitizedData.End);
-
-    // Speichern der neuen ungeplanten Stillstandszeit
-    const savedData = await createUnplannedDowntime(sanitizedData);
-
-    // Gebe die vollständigen, gesäuberten Daten zurück
-    res.status(201).json(savedData);  // Hier wird die Antwort mit den Daten zurückgegeben
-  } catch (error) {
-    res.status(400).json({ message: `Fehler beim Erstellen der ungeplanten Stillstandszeit: ${error.message}` });
-  }
-}));
-
-/**
- * @swagger
- * /unplanneddowntime/{id}:
- *   put:
- *     summary: Eine ungeplante Stillstandszeit aktualisieren
+ * /unplannedDowntime/{id}:
+ *   get:
+ *     summary: Get an unplanned downtime by ID
  *     tags: [Unplanned Downtime]
  *     parameters:
  *       - in: path
@@ -109,92 +77,93 @@ router.post("/", asyncHandler(async (req, res) => {
  *         required: true
  *         schema:
  *           type: string
- *         description: Die ID der ungeplanten Stillstandszeit
+ *         description: The ID of the unplanned downtime to retrieve.
+ *     responses:
+ *       200:
+ *         description: The unplanned downtime with the specified ID.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UnplannedDowntime'
+ *       404:
+ *         description: Unplanned downtime not found.
+ */
+router.get("/:id", asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const unplannedDowntime = await loadUnplannedDowntimeById(id);
+  if (!unplannedDowntime) {
+    return res.status(404).json({ message: "Unplanned downtime not found" });
+  }
+  res.json(unplannedDowntime);
+}));
+
+/**
+ * @swagger
+ * /unplannedDowntime:
+ *   post:
+ *     summary: Create a new unplanned downtime
+ *     tags: [Unplanned Downtime]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/UnplannedDowntimeInput'
+ *             $ref: '#/components/schemas/UnplannedDowntime'
  *     responses:
- *       200:
- *         description: Ungeplante Stillstandszeit erfolgreich aktualisiert
+ *       201:
+ *         description: Unplanned downtime created successfully.
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/UnplannedDowntime'
- *       400:
- *         description: Ungültige Eingabedaten
+ */
+router.post("/", asyncHandler(async (req, res) => {
+  const newData = {...req.body, id: uuidv4()};
+  const createdDowntime = await createUnplannedDowntime(newData);
+  res.status(201).json(createdDowntime);
+}));
+
+/**
+ * @swagger
+ * /unplannedDowntime/{id}:
+ *   put:
+ *     summary: Update an existing unplanned downtime
+ *     tags: [Unplanned Downtime]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the unplanned downtime to update.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UnplannedDowntime'
+ *     responses:
+ *       200:
+ *         description: Unplanned downtime updated successfully.
  *       404:
- *         description: Ungeplante Stillstandszeit nicht gefunden
+ *         description: Unplanned downtime not found.
+ *       500:
+ *         description: Error updating unplanned downtime.
  */
 router.put("/:id", asyncHandler(async (req, res) => {
   const { id } = req.params;
-
-  const updatedData = {
-    ...req.body,
-    Start: formatDate(req.body.Start),
-    End: formatDate(req.body.End),
-    durationInMinutes: calculateDurationInMinutes(req.body.Start, req.body.End),
-  };
-
-  try {
-    const updatedUnplannedDowntime = await updateUnplannedDowntime(id, updatedData);
-    if (!updatedUnplannedDowntime) {
-      return res.status(404).json({ message: "Ungeplante Stillstandszeit nicht gefunden" });
-    }
-    res.status(200).json(updatedUnplannedDowntime);  // Rückgabe der aktualisierten Daten
-  } catch (error) {
-    res.status(500).json({ message: `Fehler beim Aktualisieren der ungeplanten Stillstandszeit: ${error.message}` });
+  const updatedDowntime = await updateUnplannedDowntime(id, {...req.body});
+  if (!updatedDowntime) {
+    return res.status(404).json({ message: "Unplanned downtime not found" });
   }
+  res.status(200).json(updatedDowntime);
 }));
 
 /**
  * @swagger
- * /unplanneddowntime/{id}:
- *   get:
- *     summary: Abrufen einer ungeplanten Stillstandszeit nach ID
- *     tags: [Unplanned Downtime]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Die ID der ungeplanten Stillstandszeit
- *     responses:
- *       200:
- *         description: Die ungeplante Stillstandszeit mit der angegebenen ID
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/UnplannedDowntime'
- *       404:
- *         description: Ungeplante Stillstandszeit nicht gefunden
- */
-router.get("/:id", asyncHandler(async (req, res) => {
-  const { id } = req.params;  // Hole die ID aus den URL-Parametern
-
-  try {
-    // Lade die ungeplante Stillstandszeit anhand der ID
-    const unplannedDowntime = await loadUnplannedDowntimeById(id);
-
-    if (!unplannedDowntime) {
-      return res.status(404).json({ message: `Ungeplante Stillstandszeit mit ID ${id} nicht gefunden` });
-    }
-
-    res.json(unplannedDowntime);  // Gebe die Daten zurück
-  } catch (error) {
-    console.error(`Fehler beim Abrufen der ungeplanten Stillstandszeit mit ID ${id}: ${error.message}`);
-    res.status(500).json({ message: `Fehler beim Abrufen der ungeplanten Stillstandszeit mit ID ${id}: ${error.message}` });
-  }
-}));
-
-/**
- * @swagger
- * /unplanneddowntime/{id}:
+ * /unplannedDowntime/{id}:
  *   delete:
- *     summary: Eine ungeplante Stillstandszeit löschen
+ *     summary: Delete an unplanned downtime
  *     tags: [Unplanned Downtime]
  *     parameters:
  *       - in: path
@@ -202,28 +171,20 @@ router.get("/:id", asyncHandler(async (req, res) => {
  *         required: true
  *         schema:
  *           type: string
- *         description: Die ID der ungeplanten Stillstandszeit
+ *         description: The ID of the unplanned downtime to delete.
  *     responses:
  *       204:
- *         description: Ungeplante Stillstandszeit erfolgreich gelöscht
+ *         description: Unplanned downtime deleted successfully.
  *       404:
- *         description: Ungeplante Stillstandszeit nicht gefunden
+ *         description: Unplanned downtime not found.
  */
 router.delete("/:id", asyncHandler(async (req, res) => {
-  const { id } = req.params;  // Hole die ID aus den URL-Parametern
-
-  try {
-    // Lösche die ungeplante Stillstandszeit
-    const result = await deleteUnplannedDowntime(id);
-
-    if (result) {
-      res.status(204).send();  // Erfolgreiches Löschen
-    } else {
-      res.status(404).json({ message: "Ungeplante Stillstandszeit nicht gefunden" });
-    }
-  } catch (error) {
-    res.status(500).json({ message: `Fehler beim Löschen der ungeplanten Stillstandszeit: ${error.message}` });
+  const { id } = req.params;
+  const result = await deleteUnplannedDowntime(id);
+  if (!result) {
+    return res.status(404).json({ message: "Unplanned downtime not found" });
   }
+  res.status(204).send();
 }));
 
 module.exports = router;
