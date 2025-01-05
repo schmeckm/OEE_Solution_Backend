@@ -2,6 +2,7 @@ const moment = require("moment"); // Wir verwenden hier nur moment, nicht moment
 require('dotenv').config(); // Um ggf. DATE_FORMAT oder andere Umgebungsvariablen zu laden
 
 const processOrderRepository = require('../repositories/ProcessOrderRepository');
+const { oeeLogger } = require("../src/header");
 
 /**
  * Standardformat (ISO 8601) für Datumsangaben in UTC.
@@ -37,15 +38,10 @@ function formatDatesForResponse(processOrder) {
   if (!processOrder) return null;
   return {
     ...processOrder,
-    // Passen Sie die Feldnamen an Ihre tatsächlichen Felder an:
-    Start: processOrder.Start ? formatDateToUTC(processOrder.Start) : null,
-    End: processOrder.End ? formatDateToUTC(processOrder.End) : null,
-    ActualProcessOrderStart: processOrder.ActualProcessOrderStart
-      ? formatDateToUTC(processOrder.ActualProcessOrderStart)
-      : null,
-    ActualProcessOrderEnd: processOrder.ActualProcessOrderEnd
-      ? formatDateToUTC(processOrder.ActualProcessOrderEnd)
-      : null,
+    start_date: formatDateToUTC(processOrder.start_date),
+    end_date: formatDateToUTC(processOrder.end_date),
+    actualprocessorderstart: formatDateToUTC(processOrder.actualprocessorderstart),
+    actualprocessorderend: formatDateToUTC(processOrder.actualprocessorderend),
   };
 }
 
@@ -57,14 +53,10 @@ function parseDatesForDB(processOrder) {
   if (!processOrder) return null;
   return {
     ...processOrder,
-    Start: processOrder.Start ? parseDateAsUTC(processOrder.Start) : null,
-    End: processOrder.End ? parseDateAsUTC(processOrder.End) : null,
-    ActualProcessOrderStart: processOrder.ActualProcessOrderStart
-      ? parseDateAsUTC(processOrder.ActualProcessOrderStart)
-      : null,
-    ActualProcessOrderEnd: processOrder.ActualProcessOrderEnd
-      ? parseDateAsUTC(processOrder.ActualProcessOrderEnd)
-      : null,
+    start_date: parseDateAsUTC(processOrder.start_date),
+    end_date: parseDateAsUTC(processOrder.end_date),
+    actualprocessorderstart: parseDateAsUTC(processOrder.actualprocessorderstart),
+    actualprocessorderend: parseDateAsUTC(processOrder.actualprocessorderend),
   };
 }
 
@@ -75,8 +67,6 @@ async function loadAllProcessOrders() {
   try {
     // 1) Rohdaten aus Repository/DB holen
     const processOrders = await processOrderRepository.getAll();
-
-    // 2) Bei ORM-Objekten ggf. .dataValues nehmen. Hier Beispiel mit order.dataValues
     return processOrders.map((order) => {
       const data = order.dataValues || order; // Falls es ein reines Objekt ist, kann man das weglassen
       return formatDatesForResponse(data);
@@ -140,11 +130,11 @@ async function updateProcessOrder(id, updatedData) {
 }
 
 /**
- * Löscht eine bestehende Process Order.
+ * Löscht eine Process Order.
  */
 async function deleteProcessOrder(id) {
   try {
-    return await processOrderRepository.delete(id);
+    return await processOrderRepository.delete(id); // Use repository to delete
   } catch (error) {
     console.error(`Error deleting process order with ID ${id}: ${error.message}`);
     throw error;

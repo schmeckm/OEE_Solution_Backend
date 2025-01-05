@@ -47,9 +47,7 @@ const formatDate = (date) =>
 router.get("/", asyncHandler(async (req, res) => {
   try {
     const data = await loadUnplannedDowntime();
-    // Gebe nur die reinen Daten ohne Metadaten zurück
-    const sanitizedData = data.map(item => item.dataValues);
-    res.json(sanitizedData);
+    res.json(data);
   } catch (error) {
     console.error("Fehler beim Laden der ungeplanten Stillstandszeiten:", error.stack);
     res.status(500).json({ message: "Fehler beim Laden der ungeplanten Stillstandszeiten", error: error.stack });
@@ -93,7 +91,7 @@ router.post("/", asyncHandler(async (req, res) => {
     const savedData = await createUnplannedDowntime(sanitizedData);
 
     // Gebe die vollständigen, gesäuberten Daten zurück
-    res.status(201).json(savedData.dataValues);  // Hier wird die Antwort mit den Daten zurückgegeben
+    res.status(201).json(savedData);  // Hier wird die Antwort mit den Daten zurückgegeben
   } catch (error) {
     res.status(400).json({ message: `Fehler beim Erstellen der ungeplanten Stillstandszeit: ${error.message}` });
   }
@@ -133,15 +131,6 @@ router.post("/", asyncHandler(async (req, res) => {
 router.put("/:id", asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  /**
-   * An object containing updated data for unplanned downtime.
-   * 
-   * @typedef {Object} UpdatedData
-   * @property {string} Start - The formatted start date of the downtime.
-   * @property {string} End - The formatted end date of the downtime.
-   * @property {number} durationInMinutes - The calculated duration of the downtime in minutes.
-   * @property {Object} req.body - The original request body containing additional properties.
-   */
   const updatedData = {
     ...req.body,
     Start: formatDate(req.body.Start),
@@ -154,7 +143,7 @@ router.put("/:id", asyncHandler(async (req, res) => {
     if (!updatedUnplannedDowntime) {
       return res.status(404).json({ message: "Ungeplante Stillstandszeit nicht gefunden" });
     }
-    res.status(200).json(updatedUnplannedDowntime.dataValues);  // Rückgabe der aktualisierten Daten
+    res.status(200).json(updatedUnplannedDowntime);  // Rückgabe der aktualisierten Daten
   } catch (error) {
     res.status(500).json({ message: `Fehler beim Aktualisieren der ungeplanten Stillstandszeit: ${error.message}` });
   }
@@ -185,7 +174,6 @@ router.put("/:id", asyncHandler(async (req, res) => {
  */
 router.get("/:id", asyncHandler(async (req, res) => {
   const { id } = req.params;  // Hole die ID aus den URL-Parametern
-  console.log("Suchst du nach der ungeplanten Stillstandszeit mit ID: ", id);
 
   try {
     // Lade die ungeplante Stillstandszeit anhand der ID
@@ -195,16 +183,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
       return res.status(404).json({ message: `Ungeplante Stillstandszeit mit ID ${id} nicht gefunden` });
     }
 
-    // Gebe nur die Daten der ungeplanten Stillstandszeit ohne zusätzliche Metadaten zurück
-    const sanitizedData = unplannedDowntime.dataValues;  // Nur die reinen Daten zurückgeben
-    console.log("Ungeplante Stillstandszeit gefunden: ", sanitizedData);  // Debugging-Ausgabe
-
-    if (!sanitizedData) {
-      console.error("Die Daten der ungeplanten Stillstandszeit sind leer!");
-      return res.status(500).json({ message: "Die Daten der ungeplanten Stillstandszeit sind leer!" });
-    }
-
-    res.json(sanitizedData);  // Nur die `dataValues` zurückgeben
+    res.json(unplannedDowntime);  // Gebe die Daten zurück
   } catch (error) {
     console.error(`Fehler beim Abrufen der ungeplanten Stillstandszeit mit ID ${id}: ${error.message}`);
     res.status(500).json({ message: `Fehler beim Abrufen der ungeplanten Stillstandszeit mit ID ${id}: ${error.message}` });

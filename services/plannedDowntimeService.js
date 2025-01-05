@@ -2,25 +2,57 @@ const { PlannedDowntime } = require('../models'); // Import the PlannedDowntime 
 const moment = require("moment-timezone");
 const { dateSettings } = require("../config/config"); // Import timezone and date format from config
 
-// Helper function to format date fields after loading
-const formatDates = (plannedDowntime) => {
-  const { dateFormat, timezone } = dateSettings;
-  return {
-    ...plannedDowntime,
-    Start: moment(plannedDowntime.Start).tz(timezone).format(dateFormat), // Format the start date with timezone
-    End: moment(plannedDowntime.End).tz(timezone).format(dateFormat),     // Format the end date with timezone
-  };
-};
+/**
+ * Standardformat (ISO 8601) für Datumsangaben in UTC.
+ * Sie können dieses Format bei Bedarf über eine ENV-Variable oder direkt hier anpassen.
+ * Beispiel: YYYY-MM-DDTHH:mm:ss[Z] = 2025-01-02T13:00:00Z
+ */
+const DATE_FORMAT = process.env.DATE_FORMAT || "YYYY-MM-DDTHH:mm:ss[Z]";
 
-// Helper function to format date fields before saving to the database
-const formatDatesBeforeSave = (plannedDowntime) => {
-  const { timezone } = dateSettings;
+/**
+ * Konvertiert ein beliebiges Datum (Date-Objekt oder String) in einen ISO-8601-String in UTC.
+ * - Falls kein Datum vorhanden, gibt es `null` zurück.
+ */
+function formatDateToUTC(date) {
+  if (!date) return null;
+  // moment.utc(...) sorgt dafür, dass wir den Wert als UTC behandeln
+  return moment.utc(date).format(DATE_FORMAT);
+}
+
+/**
+ * Konvertiert ein Datum (String oder Date) in ein reines UTC-Date-Objekt (für Speichern in DB).
+ * - Falls kein Datum vorhanden, gibt es `null` zurück.
+ */
+function parseDateAsUTC(date) {
+  if (!date) return null;
+  return moment.utc(date).toDate();
+}
+
+/**
+ * Formatiert ein einzelnes Planned-Downtime-Objekt so, dass alle Zeitfelder (z. B. Start, End, usw.)
+ * als UTC-Strings ausgegeben werden.
+ */
+function formatDatesForResponse(plannedDowntime) {
+  if (!plannedDowntime) return null;
   return {
     ...plannedDowntime,
-    Start: moment.tz(plannedDowntime.Start, timezone).utc().toDate(), // Convert to UTC before saving
-    End: moment.tz(plannedDowntime.End, timezone).utc().toDate(),     // Convert to UTC before saving
+    Start: formatDateToUTC(plannedDowntime.Start),
+    End: formatDateToUTC(plannedDowntime.End),
   };
-};
+}
+
+/**
+ * Konvertiert ein Planned-Downtime-Objekt so, dass alle Zeitfelder als Date-Objekte in UTC
+ * vorliegen, bevor sie in der DB gespeichert werden (z. B. über Sequelize/Repository).
+ */
+function parseDatesForDB(plannedDowntime) {
+  if (!plannedDowntime) return null;
+  return {
+    ...plannedDowntime,
+    Start: parseDateAsUTC(plannedDowntime.Start),
+    End: parseDateAsUTC(plannedDowntime.End),
+  };
+}
 
 // General error handler
 const handleError = (action, error) => {
@@ -38,7 +70,7 @@ const loadPlannedDowntime = async () => {
     if (!data || data.length === 0) {
       return [];
     }
-    return data;
+    return data.map(formatDatesForResponse); // Format the dates after loading
   } catch (error) {
     handleError('load all', error);
   }
@@ -56,7 +88,7 @@ const loadPlannedDowntimeById = async (id) => {
       console.log(`No planned downtime found with ID ${id}.`);
       return null;
     }
-    return plannedDowntime;
+    return formatDatesForResponse(plannedDowntime); // Format the dates after loading
   } catch (error) {
     handleError(`load by ID ${id}`, error);
   }
@@ -69,9 +101,9 @@ const loadPlannedDowntimeById = async (id) => {
  */
 const createPlannedDowntime = async (data) => {
   try {
-    const formattedData = formatDatesBeforeSave(data); // Format the dates before saving
+    const formattedData = parseDatesForDB(data); // Format the dates before saving
     const plannedDowntime = await PlannedDowntime.create(formattedData);
-    return formatDates(plannedDowntime.get()); // Format the dates after saving and return
+    return formatDatesForResponse(plannedDowntime.get()); // Format the dates after saving and return
   } catch (error) {
     handleError('create', error);
   }
@@ -88,8 +120,9 @@ const updatePlannedDowntime = async (id, data) => {
     const plannedDowntime = await PlannedDowntime.findByPk(id);
     if (!plannedDowntime) throw new Error('Planned downtime not found');
 
-    const updatedDowntime = await plannedDowntime.update(data);
-    return formatDates(updatedDowntime.get()); // Format the dates after updating and return
+    const formattedData = parseDatesForDB(data); // Format the dates before updating
+    const updatedDowntime = await plannedDowntime.update(formattedData);
+    return formatDatesForResponse(updatedDowntime.get()); // Format the dates after updating and return
   } catch (error) {
     handleError(`update with ID ${id}`, error);
   }
