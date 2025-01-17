@@ -178,6 +178,7 @@ function logMetricBuffer() {
     });
 }
 
+
 function calculateTotalTimes(datasets) {
     return datasets.reduce((totals, dataset, index) => {
         const total = dataset.data.reduce((a, b) => a + b, 0);
