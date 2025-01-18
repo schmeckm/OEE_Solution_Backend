@@ -269,7 +269,7 @@ async function deleteMicrostop(id) {
  *               items:
  *                 $ref: '#/components/schemas/Microstop'
  */
-async function loadMicrostops(req) {
+async function loadMicrostopsbyTime(req) {
   try {
     const { start_date, end_date, order_id } = req.query;
     let whereClause = {};
@@ -304,6 +304,7 @@ module.exports = {
   createMicrostop,
   updateMicrostop,
   loadMicrostops,
+  loadMicrostopsbyTime,
   loadMicrostopById,
   deleteMicrostop
 };
