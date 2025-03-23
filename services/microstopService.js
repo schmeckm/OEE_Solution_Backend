@@ -232,79 +232,12 @@ async function deleteMicrostop(id) {
   }
 }
 
-/**
- * @swagger
- * /microstops:
- *   get:
- *     summary: Retrieve a filtered list of microstops based on date range and order ID
- *     tags: [Microstop]
- *     parameters:
- *       - in: query
- *         name: start_date
- *         schema:
- *           type: string
- *           format: date-time
- *         required: false
- *         description: Start date of the microstop period.
- *       - in: query
- *         name: end_date
- *         schema:
- *           type: string
- *           format: date-time
- *         required: false
- *         description: End date of the microstop period.
- *       - in: query
- *         name: order_id
- *         schema:
- *           type: string
- *         required: false
- *         description: Specific order ID to filter by.
- *     responses:
- *       200:
- *         description: A list of filtered microstops.
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Microstop'
- */
-async function loadMicrostopsbyTime(req) {
-  try {
-    const { start_date, end_date, order_id } = req.query;
-    let whereClause = {};
-
-    if (start_date && end_date) {
-      whereClause.start_date = {
-        [Sequelize.Op.gte]: moment.utc(start_date).toDate(),
-        [Sequelize.Op.lte]: moment.utc(end_date).toDate()
-      };
-    }
-
-    if (order_id) {
-      whereClause.order_id = order_id;
-    }
-
-    const data = await Microstop.findAll({
-      where: whereClause
-    });
-
-    if (!data || data.length === 0) {
-      return [];
-    }
-
-    return data.map(record => formatDatesForResponse(record.get()));
-  } catch (error) {
-    handleError('load all', error);
-  }
-}
 
 
 module.exports = {
   createMicrostop,
   updateMicrostop,
   loadMicrostops,
-  loadMicrostopsbyTime,
   loadMicrostopById,
   deleteMicrostop
 };

@@ -11,10 +11,11 @@ const {
 } = require("./header");
 
 const { v4: uuidv4 } = require("uuid");
-const { invalidateCache  } = require("./dataLoader");
+const { invalidateCache } = require("./dataLoader");
 const { sendWebSocketMessage } = require("../websocket/webSocketUtils");
 const { influxdb } = require("../config/config");
 const { writeOEEToInfluxDB } = require("../services/oeeMetricsService");
+
 let currentHoldStatus = {};
 
 /**
@@ -24,10 +25,10 @@ let currentHoldStatus = {};
  */
 async function handleHoldCommand(value, machineId) {
     const timestamp = moment().tz(TIMEZONE).toISOString();
-    console.log(`handleHoldCommand called with value: ${value}, machineId: ${machineId}, timestamp: ${timestamp}`);
+    logInfo(`handleHoldCommand called with value: ${value}, machineId: ${machineId}, timestamp: ${timestamp}`);
 
     if (value !== 1) {
-        logInfo("Hold command received, but value is not 1");
+        logInfo("Hold command received, but value is not 1. Skipping.");
         return;
     }
 
@@ -47,16 +48,16 @@ async function handleHoldCommand(value, machineId) {
  */
 async function handleUnholdCommand(value, machineId) {
     const timestamp = moment().tz(TIMEZONE).toISOString();
-    oeeLogger.info(`handleUnholdCommand called with value: ${value}, machineId: ${machineId}`);
+    logInfo(`handleUnholdCommand called with value: ${value}, machineId: ${machineId}`);
 
     if (value !== 1) {
-        logInfo("Unhold command received, but value is not 1");
+        logInfo("Unhold command received, but value is not 1. Skipping.");
         return;
     }
 
     const holdStatus = currentHoldStatus[machineId];
     if (!holdStatus?.startTimestamp) {
-        logInfo(`Unhold command received, but no previous Hold signal found for machine ${machineId}.`);
+        logInfo(`Unhold command received, but no previous Hold signal found for machine ${machineId}. Skipping.`);
         return;
     }
 
@@ -113,93 +114,118 @@ async function handleUnholdCommand(value, machineId) {
 
     delete currentHoldStatus[machineId];
 }
+
 /**
  * Updates the actual start time of a process order using the provided API.
+ * @param {number} value - The value indicating the start command (1 for start).
  * @param {string} machineId - The ID of the machine starting the process order.
  */
 async function handleProcessOrderStartCommand(value, machineId) {
     const timestamp = moment().tz(TIMEZONE).toISOString();
-    oeeLogger.info(`handleProcessOrderStart called for machineId: ${machineId} at ${timestamp}`);
+    logInfo(`handleProcessOrderStart called for machineId: ${machineId} at ${timestamp}`);
 
     try {
-        const response = await apiClient.get(`/processorders/rel`, {
-            params: { machineId, mark: true },
-        });
-
-        const processOrder = response.data[0];
-        delete processOrder.marked;
-
+        const processOrder = await getActiveProcessOrder(machineId);
         if (processOrder) {
             const processOrderId = processOrder.order_id;
-            console.log(`Process Order Start for ProcessOrderID: ${processOrderId}`);
+            logInfo(`Process Order Start for ProcessOrderID: ${processOrderId}`);
+
             await apiClient.put(`/processorders/${processOrderId}`, {
                 ...processOrder,
-                actualprocessorderstart: timestamp
+                actualprocessorderstart: timestamp,
             });
-            oeeLogger.info(`Updated ActualProcessOrderStart for ProcessOrderID: ${processOrderId} to ${timestamp}`);
+
+            logInfo(`Updated ActualProcessOrderStart for ProcessOrderID: ${processOrderId} to ${timestamp}`);
         } else {
-            oeeLogger.warn(`No active process order found for machineId: ${machineId}`);
+            logInfo(`No active process order found for machineId: ${machineId}`);
         }
     } catch (error) {
-        errorLogger.error(`Failed to update ActualProcessOrderStart for machineId ${machineId}: ${error.message}`);
+        logError(`Failed to update ActualProcessOrderStart for machineId ${machineId}`, error);
     }
 }
 
 /**
  * Updates the actual end time of a process order using the provided API.
+ * @param {number} value - The value indicating the end command (1 for end).
  * @param {string} machineId - The ID of the machine ending the process order.
  */
 async function handleProcessOrderEndCommand(value, machineId) {
     const timestamp = moment().tz(TIMEZONE).toISOString();
     const processorderstatus = "CLD";
-    console.log(`handleProcessOrderEnd called for machineId: ${machineId} at ${timestamp}`);
+    logInfo(`handleProcessOrderEnd called for machineId: ${machineId} at ${timestamp}`);
 
-    let metrics;
+    try {
+        const processOrder = await getActiveProcessOrder(machineId);
+        if (processOrder) {
+            const processOrderId = processOrder.order_id;
+            logInfo(`Process Order End for ProcessOrderID: ${processOrderId}`);
 
+            const metrics = await getOEEMetrics(machineId);
+            if (metrics) {
+                logInfo(`OEE metrics retrieved successfully for machine ${machineId}: ${JSON.stringify(metrics)}`);
+            }
+
+            await apiClient.put(`/processorders/${processOrderId}`, {
+                ...processOrder,
+                actualprocessorderend: timestamp,
+                processorderstatus: processorderstatus,
+            });
+
+            if (processorderstatus === "CLD" || processOrder.actualprocessorderend) {
+                logInfo(`Process Order for machine ${machineId} is completed. Writing metrics to InfluxDB.`);
+                await writeOEEToInfluxDB(metrics);
+                logInfo("Metrics written to InfluxDB.");
+            } else {
+                logInfo(`Process Order for machine ${machineId} is not completed. InfluxDB write skipped.`);
+            }
+        } else {
+            logInfo(`No active process order found for machineId: ${machineId}`);
+        }
+    } catch (error) {
+        logError(`Failed to update ActualProcessOrderEnd for machineId ${machineId}`, error);
+    }
+
+    invalidateCache();
+}
+
+/**
+ * Retrieves the active process order for a machine.
+ * @param {string} machineId - The ID of the machine.
+ * @returns {Object|null} The active process order or null if not found.
+ */
+async function getActiveProcessOrder(machineId) {
     try {
         const response = await apiClient.get(`/processorders/rel`, {
             params: { machineId, mark: true },
         });
 
         const processOrder = response.data[0];
-        delete processOrder.marked;
-        oeeLogger.info(`Process Order Start for machine ${machineId} found: ${JSON.stringify(processOrder)}`);
         if (processOrder) {
-            const processOrderId = processOrder.order_id;
-            oeeLogger.info(`Process Order End for ProcessOrderID: ${processOrderId}`);
-
-            try {
-                const response = await apiClient.get(`/oee/${machineId}`);
-                metrics = response.data;
-                oeeLogger.info(`OEE metrics retrieved successfully for machine ${machineId}: ${JSON.stringify(metrics)}`);
-            } catch (error) {
-                logError(`Failed to retrieve OEE metrics for machineId ${machineId}`, error);
-                return;
-            }
-
-            await apiClient.put(`/processorders/${processOrderId}`, {
-                ...processOrder,
-                actualprocessorderend: timestamp,
-                processorderstatus: processorderstatus
-            });
-
-        } else {
-            oeeLogger.warn(`No active process order found for machineId: ${machineId}`);
+            delete processOrder.marked;
+            return processOrder;
         }
+        return null;
     } catch (error) {
-        errorLogger.error(`Failed to update ActualProcessOrderEnd for machineId ${machineId}: ${error.message}`);
+        logError(`Failed to retrieve process order for machineId ${machineId}`, error);
+        return null;
     }
-
-    if (processorderstatus === 'CLD' || actualprocessorderend) {
-        oeeLogger.info(`Process Order for machine ${machineId} is completed. Writing metrics to InfluxDB.`);
-            await writeOEEToInfluxDB(metrics);
-            oeeLogger.info("Metrics written to InfluxDB.");
-            
-    } else {
-        oeeLogger.debug(`Process Order for machine ${machineId} is not completed. InfluxDB write skipped.`);
-    }
-    invalidateCache();
 }
+
+/**
+ * Retrieves OEE metrics for a machine.
+ * @param {string} machineId - The ID of the machine.
+ * @returns {Object|null} The OEE metrics or null if not found.
+ */
+async function getOEEMetrics(machineId) {
+    try {
+        const response = await apiClient.get(`/oee/${machineId}`);
+        return response.data;
+    } catch (error) {
+        logError(`Failed to retrieve OEE metrics for machineId ${machineId}`, error);
+        return null;
+    }
+}
+
 /**
  * Logs an error message.
  * @param {string} message - The error message to log.
@@ -208,7 +234,7 @@ async function handleProcessOrderEndCommand(value, machineId) {
 function logError(message, error) {
     const fullMessage = message + (error ? ": " + error.message : "");
     errorLogger.error(fullMessage);
-    console.log(`ERROR: ${fullMessage}`);
+    console.error(`ERROR: ${fullMessage}`);
 }
 
 /**

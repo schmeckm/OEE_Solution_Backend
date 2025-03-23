@@ -1,89 +1,151 @@
-// websocket/webSocketUtils.js
-
 const WebSocket = require("ws");
 const { oeeLogger, errorLogger } = require("../utils/logger");
-const { loadMachineStoppagesData } = require("../src/dataLoader");
+const { loadMicrostops } = require("../src/dataLoader");
 
-let wsServer = null; // Hält die WebSocket-Server-Instanz
+let wsServer = null; // Holds the WebSocket server instance
+let pingInterval = null; // Holds the ping interval
 
 /**
- * Setzt den WebSocket-Server und behandelt Client-Verbindungen.
+ * Sets the WebSocket server and handles client connections.
  *
- * @param {WebSocket.Server} server - Die WebSocket-Server-Instanz.
+ * @param {WebSocket.Server} server - The WebSocket server instance.
  */
 function setWebSocketServer(server) {
     if (!wsServer) {
         wsServer = server;
-        oeeLogger.info("WebSocket-Server-Instanz wurde gesetzt.");
-        wsServer.on("connection", async (ws) => {
-            oeeLogger.info("Client mit WebSocket verbunden.");
+        oeeLogger.info("WebSocket server instance has been set.");
 
-            // Ping/Pong-Mechanismus zur Erkennung unterbrochener Verbindungen
-            ws.isAlive = true;
-            ws.on('pong', () => {
-                ws.isAlive = true;
-            });
+        // Start the ping interval to detect inactive clients
+        startPingInterval();
 
-            const interval = setInterval(() => {
-                wsServer.clients.forEach((client) => {
-                    if (client.isAlive === false) {
-                        client.terminate(); // Verbindung beenden, wenn der Client nicht reagiert
-                        oeeLogger.info('Inaktive WebSocket-Client-Verbindung beendet.');
-                    } else {
-                        client.isAlive = false;
-                        client.ping(); // Ping an den Client senden
-                    }
-                });
-            }, 30000); // Alle 30 Sekunden pingen
-
-            // Initiale Daten an den neu verbundenen Client senden
-            try {
-                const machineStoppagesData = await loadMachineStoppagesData();
-                sendWebSocketMessage("Microstops", machineStoppagesData);
-                oeeLogger.info("Initiale Maschinenstoppdaten an WebSocket-Client gesendet.");
-            } catch (error) {
-                errorLogger.error(`Fehler beim Senden der initialen Maschinenstoppdaten: ${error.message}`);
-            }
-
-            ws.on("close", () => {
-                oeeLogger.info("WebSocket-Client getrennt.");
-                clearInterval(interval); // Ping-Intervall stoppen, wenn der Client trennt
-            });
-
-            ws.on("error", (error) => {
-                errorLogger.error(`WebSocket-Fehler: ${error.message}`);
-            });
-        });
+        // Event listener for new client connections
+        wsServer.on("connection", handleWebSocketConnection);
     } else {
-        errorLogger.warn("WebSocket-Server-Instanz ist bereits gesetzt.");
+        errorLogger.warn("WebSocket server instance is already set.");
     }
 }
 
 /**
- * Sendet Daten an alle verbundenen WebSocket-Clients mit einem bestimmten Typ.
+ * Starts the ping interval to detect inactive clients.
+ */
+function startPingInterval() {
+    pingInterval = setInterval(() => {
+        if (wsServer) {
+            wsServer.clients.forEach((client) => {
+                if (client.isAlive === false) {
+                    client.terminate(); // Terminate the connection if the client is unresponsive
+                    oeeLogger.info('Terminated inactive WebSocket client connection.');
+                } else {
+                    client.isAlive = false;
+                    client.ping(); // Send a ping to the client
+                }
+            });
+        }
+    }, 30000); // Ping every 30 seconds
+}
+
+/**
+ * Handles new WebSocket client connections.
  *
- * @param {string} type - Der Typ der gesendeten Daten.
- * @param {Object} data - Die zu sendenden Daten.
+ * @param {WebSocket} ws - The WebSocket client connection.
+ */
+async function handleWebSocketConnection(ws) {
+    oeeLogger.info("Client connected via WebSocket.");
+
+    // Initialize the ping/pong mechanism
+    ws.isAlive = true;
+    ws.on('pong', () => {
+        ws.isAlive = true;
+    });
+
+    // Send initial data to the newly connected client
+    try {
+        const machineStoppagesData = await loadMicrostops();
+        sendWebSocketMessage("Microstops", machineStoppagesData);
+        oeeLogger.info("Initial machine stoppage data sent to WebSocket client.");
+    } catch (error) {
+        errorLogger.error(`Error loading machine stoppage data: ${error.message}`);
+    }
+
+    // Event listener for client disconnection
+    ws.on("close", () => {
+        oeeLogger.info("WebSocket client disconnected.");
+        stopPingIntervalIfNoClients(); // Stop the ping interval if no clients are connected
+    });
+
+    // Event listener for errors
+    ws.on("error", (error) => {
+        errorLogger.error(`WebSocket error: ${error.message}`);
+    });
+}
+
+/**
+ * Stops the ping interval if no clients are connected.
+ */
+function stopPingIntervalIfNoClients() {
+    if (wsServer && wsServer.clients.size === 0) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+        oeeLogger.info("Ping interval stopped as no clients are connected.");
+    }
+}
+
+/**
+ * Sends data to all connected WebSocket clients with a specific type.
+ *
+ * @param {string} type - The type of data being sent.
+ * @param {Object} data - The data to send.
  */
 function sendWebSocketMessage(type, data) {
-    if (wsServer) {
-        const payload = JSON.stringify({ type, data });
+    if (!wsServer) {
+        errorLogger.error("WebSocket server instance is not set.");
+        return;
+    }
 
-        wsServer.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-                try {
-                    client.send(payload);
-                } catch (error) {
-                    errorLogger.error(`Fehler beim Senden der Daten an WebSocket-Client: ${error.message}`);
-                }
+    if (!type || !data) {
+        errorLogger.error("Invalid parameters for sendWebSocketMessage: type and data are required.");
+        return;
+    }
+
+    const payload = JSON.stringify({ type, data });
+
+    wsServer.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            try {
+                client.send(payload);
+            } catch (error) {
+                errorLogger.error(`Error sending data to WebSocket client: ${error.message}`);
             }
+        }
+    });
+}
+
+/**
+ * Closes the WebSocket server and cleans up resources.
+ */
+function closeWebSocketServer() {
+    if (wsServer) {
+        wsServer.clients.forEach((client) => {
+            client.terminate(); // Terminate all client connections
         });
+
+        wsServer.close(() => {
+            oeeLogger.info("WebSocket server has been closed.");
+            wsServer = null;
+        });
+
+        if (pingInterval) {
+            clearInterval(pingInterval);
+            pingInterval = null;
+            oeeLogger.info("Ping interval stopped.");
+        }
     } else {
-        errorLogger.error("WebSocket-Server-Instanz ist nicht gesetzt.");
+        errorLogger.warn("WebSocket server instance is not set.");
     }
 }
 
 module.exports = {
     setWebSocketServer,
     sendWebSocketMessage,
+    closeWebSocketServer,
 };
