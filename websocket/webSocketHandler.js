@@ -1,77 +1,91 @@
 const { defaultLogger, errorLogger } = require('../utils/logger');
-/**
- * Handles WebSocket connections and message processing.
- * 
- * @param {Object} wss - The WebSocket server instance.
- */
-function handleWebSocketConnections(wss) {
-    // Event listener for new WebSocket connections
-    wss.on('connection', (ws, req) => {
-        defaultLogger.info('WebSocket connection established');
 
-        // Set up ping/pong mechanism to detect broken connections
+function handleWebSocketConnections(wss) {
+    const PING_INTERVAL = 30000; // 30 seconds
+    const PONG_TIMEOUT = 10000; // 10 seconds
+
+    // Broadcast helper function
+    function broadcast(wss, message) {
+        wss.clients.forEach(client => {
+            if (client.readyState === ws.OPEN) {
+                client.send(JSON.stringify(message));
+            }
+        });
+    }
+
+    // Log active connections
+    function logActiveConnections(wss) {
+        const activeConnections = Array.from(wss.clients).filter(client => client.readyState === ws.OPEN).length;
+        defaultLogger.info(`Active WebSocket connections: ${activeConnections}`);
+    }
+
+    // Graceful shutdown
+    function gracefulShutdown(wss) {
+        defaultLogger.info('Shutting down WebSocket server...');
+        clearInterval(interval);
+        wss.clients.forEach(client => client.close());
+        wss.close(() => defaultLogger.info('WebSocket server closed.'));
+    }
+
+    process.on('SIGINT', () => gracefulShutdown(wss));
+    process.on('SIGTERM', () => gracefulShutdown(wss));
+
+    // Handle new connections
+    wss.on('connection', (ws, req) => {
+        const clientId = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+        defaultLogger.info(`WebSocket connection established from client: ${clientId}`);
+
         ws.isAlive = true;
 
-        // Listener for pong event to mark client as alive
         ws.on('pong', () => {
             ws.isAlive = true;
+            clearTimeout(ws.pongTimeout);
         });
 
-        // Ping clients every 30 seconds to check if they are alive
         const interval = setInterval(() => {
             wss.clients.forEach(client => {
                 if (client.isAlive === false) {
-                    client.terminate(); // Terminate the connection if the client did not respond
-                    defaultLogger.info('Terminated inactive WebSocket client.');
+                    client.terminate();
+                    defaultLogger.info(`Terminated inactive client: ${clientId}`);
                 } else {
                     client.isAlive = false;
-                    client.ping(); // Send a ping to the client
+                    client.ping();
+                    client.pongTimeout = setTimeout(() => {
+                        client.terminate();
+                        defaultLogger.info(`Terminated client due to pong timeout: ${clientId}`);
+                    }, PONG_TIMEOUT);
                 }
             });
-        }, 30000); // Ping every 30 seconds
+        }, PING_INTERVAL);
 
-        // Handle incoming messages from WebSocket clients
-        ws.on('message', (message) => {
+        ws.on('message', async (message) => {
             try {
-                const parsedMessage = JSON.parse(message); // Parse the received message
-                defaultLogger.info(`Received message: ${message}`);
+                const parsedMessage = JSON.parse(message);
+                defaultLogger.info(`Received message from ${clientId}: ${message}`);
 
-                // Check the message type and act accordingly
                 if (parsedMessage.type === 'updateRating') {
                     const { ProcessOrderID, ID, Reason } = parsedMessage.data;
-
-                    // Process and save the rating, handling any errors
-                    saveRating(ProcessOrderID, ID, Reason, (error, updatedStoppages) => {
-                        if (error) {
-                            errorLogger.error(`Error saving rating: ${error.message}`);
-                            return;
-                        }
-
-                        // Broadcast the updated data to all connected WebSocket clients
-                        wss.clients.forEach(client => {
-                            if (client.readyState === ws.OPEN) {
-                                client.send(JSON.stringify({ type: 'Microstops', data: updatedStoppages }));
-                            }
-                        });
-                    });
+                    const updatedStoppages = await saveRating(ProcessOrderID, ID, Reason);
+                    broadcast(wss, { type: 'Microstops', data: updatedStoppages });
                 }
             } catch (err) {
-                errorLogger.error(`Error processing WebSocket message: ${err.message}`);
-                ws.send(JSON.stringify({ error: 'Invalid message format' })); // Optional: Notify client of the error
+                errorLogger.error(`Error processing message from ${clientId}: ${err.message}`);
+                ws.send(JSON.stringify({ error: 'Invalid message format' }));
             }
         });
 
-        // Handle WebSocket connection closure
         ws.on('close', () => {
-            defaultLogger.info('WebSocket connection closed');
-            clearInterval(interval); // Stop the ping interval when the client disconnects
+            defaultLogger.info(`WebSocket connection closed for client: ${clientId}`);
+            clearInterval(interval);
         });
 
-        // Handle WebSocket errors
         ws.on('error', (err) => {
-            errorLogger.error(`WebSocket error: ${err.message}`);
+            errorLogger.error(`WebSocket error for client ${clientId}: ${err.message}`);
         });
     });
+
+    // Log active connections periodically
+    setInterval(() => logActiveConnections(wss), 60000);
 }
 
 module.exports = handleWebSocketConnections;
