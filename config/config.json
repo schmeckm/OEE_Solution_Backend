@@ -30,7 +30,7 @@
     "topicFormat": "spBv1.0/group_id/message_type/edge_node_id",
     "plannedDowntimeApiUrl": null,
     "MQTT_Enable": true,
-    "MQTT_Broker": "mqtt://broker.hivemq.com",
+    "MQTT_Broker": "mqtt://broker.emqx.io",
     "MQTT_TopicPrefix": "spBv1.0",
     "logSettings": {
         "logToConsole": true,
