@@ -1,6 +1,6 @@
 {
     "mqtt": {
-        "brokerUrl": "mqtt://broker.hivemq.com",
+        "brokerUrl": "mqtt://broker.emqx.io",
         "clientId": "oeesolution",
         "brokerPort": 1883,
         "username": "test",
