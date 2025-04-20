@@ -23,9 +23,7 @@ const oeeMetricsRouter = require("./oeeMetricsRoutes");
 const prepareOEERouter = require("./prepareOEE");
 const oeeDataRouter = require("./oeeRoutes");
 const tactRouter = require('./tact');
-
-
-
+const authRouter = require('./authRoutes');
 
 // Zentralisiertes Fehlerhandling
 const asyncHandler = (fn) => (req, res, next) =>
@@ -94,7 +92,10 @@ function registerApiRoutes(app) {
   app.use("/api/v1/settings", verifyApiKey, settingRouter);
   app.use("/api/v1/prepareOEE", verifyApiKey, prepareOEERouter);
   app.use("/api/v1/oee", verifyApiKey, oeeDataRouter);
-  app.use('/api/v1/tacts', verifyApiKey, tactRouter);
+  app.use("/api/v1/tacts", verifyApiKey, tactRouter);
+  
+  // Auth Routes for User Authentication
+  app.use("/api/v1/auth", /* optional: verifyApiKey, */ authRouter);
 }
 
 module.exports = registerApiRoutes;
