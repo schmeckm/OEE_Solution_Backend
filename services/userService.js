@@ -6,7 +6,7 @@ const { User } = require('../models');  // Importiert das User-Modell
  */
 const loadUsers = async () => {
   try {
-    return await User.findAll();  // Alle User-Daten aus der DB abfragen
+    return await User.findAll();   // Alle User-Daten aus der DB abfragen
   } catch (error) {
     throw new Error(`Error fetching user data: ${error.message}`);
   }
@@ -19,7 +19,7 @@ const loadUsers = async () => {
  */
 const loadUserById = async (id) => {
   try {
-    return await User.findOne({ where: { id } });  // Nach id suchen
+    return await User.findOne({ where: { user_id: id } }); // Nach user_id suchen
   } catch (error) {
     throw new Error(`Error fetching user with ID ${id}: ${error.message}`);
   }
@@ -32,7 +32,7 @@ const loadUserById = async (id) => {
  */
 const createUser = async (data) => {
   try {
-    return await User.create(data);  // Erstellt das User-Modell
+    return await User.create(data);   // Erstellt das User-Modell
   } catch (error) {
     throw new Error(`Error creating user: ${error.message}`);
   }
@@ -50,7 +50,7 @@ const updateUser = async (id, data) => {
     if (!user) {
       throw new Error(`User with ID ${id} not found`);
     }
-    return await user.update(data);  // Das User-Modell mit den neuen Daten aktualisieren
+    return await user.update(data);   // Das User-Modell mit den neuen Daten aktualisieren
   } catch (error) {
     throw new Error(`Error updating user: ${error.message}`);
   }
@@ -67,7 +67,7 @@ const deleteUser = async (id) => {
     if (!user) {
       throw new Error(`User with ID ${id} not found`);
     }
-    await user.destroy();  // Löscht das User-Modell
+    await user.destroy();   // Löscht das User-Modell
     return true;
   } catch (error) {
     throw new Error(`Error deleting user: ${error.message}`);
