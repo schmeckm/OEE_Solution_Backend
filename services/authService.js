@@ -42,8 +42,8 @@ async function findOrCreateUser(googlePayload) {
                 firstName: googlePayload.given_name,
                 lastName: googlePayload.family_name,
                 googleId: googlePayload.sub,
-                role: 'Standard'
-                // Füge hier weitere Felder hinzu, die du speichern möchtest (z.B. role)
+                role: 'User',
+                picture: googlePayload.picture 
             };
             user = await User.create(newUser);
             console.log('Neuer Benutzer mit Google-Konto erstellt:', user);
@@ -54,7 +54,6 @@ async function findOrCreateUser(googlePayload) {
         throw error;
     }
 }
-
 
 /**
  * Generates an application-specific token or session for the user.
